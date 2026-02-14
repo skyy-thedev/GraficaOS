@@ -1,0 +1,102 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id          String   @id @default(cuid())
+  name        String
+  email       String   @unique
+  password    String
+  role        Role     @default(EMPLOYEE)
+  avatarColor String   @default("#6c63ff")
+  initials    String
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  pontos Ponto[]
+  artes  Arte[]  @relation("ArteResponsavel")
+}
+
+model Ponto {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id])
+  date      DateTime  @default(now()) @db.Date
+  entrada   DateTime?
+  almoco    DateTime?
+  retorno   DateTime?
+  saida     DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@unique([userId, date])
+}
+
+model Arte {
+  id            String      @id @default(cuid())
+  codigo        String      @unique // ex: ART-001
+  clienteNome   String
+  clienteNumero String
+  orcamentoNum  String
+  produto       ProdutoTipo
+  quantidade    Int         @default(1)
+  largura       Float
+  altura        Float
+  responsavelId String
+  responsavel   User        @relation("ArteResponsavel", fields: [responsavelId], references: [id])
+  status        ArteStatus  @default(TODO)
+  urgencia      Urgencia    @default(NORMAL)
+  prazo         DateTime?
+  observacoes   String?
+  arquivos      Arquivo[]
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+}
+
+model Arquivo {
+  id           String   @id @default(cuid())
+  arteId       String
+  arte         Arte     @relation(fields: [arteId], references: [id], onDelete: Cascade)
+  nomeOriginal String
+  nomeStorage  String
+  tipo         String // "image/jpeg", "application/pdf"
+  tamanho      Int
+  url          String
+  createdAt    DateTime @default(now())
+}
+
+enum Role {
+  ADMIN
+  EMPLOYEE
+}
+
+enum ArteStatus {
+  TODO
+  DOING
+  REVIEW
+  DONE
+}
+
+enum Urgencia {
+  LOW
+  NORMAL
+  HIGH
+}
+
+enum ProdutoTipo {
+  AZULEJO
+  BANNER
+  ADESIVO
+  PLACA
+  FAIXA
+  OUTRO
+}
