@@ -10,10 +10,16 @@ import { arteRoutes } from './routes/arte.routes';
 
 const app = express();
 
+// Log CORS origin para debug em produção
+console.log(`🌐 CORS origin configurado: ${env.FRONTEND_URL}`);
+console.log(`🔧 NODE_ENV: ${env.NODE_ENV}`);
+
 // Middlewares globais
 app.use(cors({
   origin: env.FRONTEND_URL,
   credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
 }));
 app.use(express.json());
 app.use('/uploads', express.static(env.UPLOAD_DIR));
