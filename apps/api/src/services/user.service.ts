@@ -118,3 +118,26 @@ export async function deleteUser(id: string) {
     },
   });
 }
+
+/** Exclui permanentemente um funcionário (hard delete) */
+export async function hardDeleteUser(id: string) {
+  // Remove registros relacionados primeiro
+  await prisma.checklistRegistro.deleteMany({ where: { userId: id } });
+  await prisma.ponto.deleteMany({ where: { userId: id } });
+
+  // Remove arquivos das artes e depois as artes do funcionário
+  const artes = await prisma.arte.findMany({ where: { responsavelId: id }, select: { id: true } });
+  if (artes.length > 0) {
+    const arteIds = artes.map((a) => a.id);
+    await prisma.arquivo.deleteMany({ where: { arteId: { in: arteIds } } });
+    await prisma.arte.deleteMany({ where: { responsavelId: id } });
+  }
+
+  return prisma.user.delete({
+    where: { id },
+    select: {
+      id: true,
+      name: true,
+    },
+  });
+}

@@ -24,6 +24,7 @@ model User {
 
   pontos Ponto[]
   artes  Arte[]  @relation("ArteResponsavel")
+  checklistRegistros ChecklistRegistro[]
 }
 
 model Ponto {
@@ -99,4 +100,32 @@ enum ProdutoTipo {
   PLACA
   FAIXA
   OUTRO
+}
+
+model ChecklistItem {
+  id            String   @id @default(cuid())
+  titulo        String
+  descricao     String?
+  horarioLimite String?  // formato "HH:MM"
+  ordem         Int      @default(0)
+  ativo         Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  registros ChecklistRegistro[]
+}
+
+model ChecklistRegistro {
+  id        String        @id @default(cuid())
+  itemId    String
+  item      ChecklistItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User          @relation(fields: [userId], references: [id])
+  data      DateTime      @db.Date
+  feito     Boolean       @default(false)
+  feitoEm   DateTime?
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+
+  @@unique([itemId, data])
 }

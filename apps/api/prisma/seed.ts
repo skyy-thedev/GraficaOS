@@ -13,6 +13,8 @@ async function main() {
   console.log('🌱 Iniciando seed do banco de dados...');
 
   // Limpa dados existentes
+  await prisma.checklistRegistro.deleteMany();
+  await prisma.checklistItem.deleteMany();
   await prisma.arquivo.deleteMany();
   await prisma.arte.deleteMany();
   await prisma.ponto.deleteMany();
@@ -199,6 +201,42 @@ async function main() {
   }
 
   console.log('✅ Pontos criados');
+
+  // ===== Checklist Diário =====
+  const itensChecklist = await Promise.all([
+    prisma.checklistItem.create({ data: { titulo: 'Abrir a loja', horarioLimite: '08:30', ordem: 1 } }),
+    prisma.checklistItem.create({ data: { titulo: 'Ligar computadores', horarioLimite: '08:45', ordem: 2 } }),
+    prisma.checklistItem.create({ data: { titulo: 'Verificar emails', horarioLimite: '09:00', ordem: 3 } }),
+    prisma.checklistItem.create({ data: { titulo: 'Organizar estoque', horarioLimite: '10:00', ordem: 4 } }),
+    prisma.checklistItem.create({ data: { titulo: 'Limpar área de trabalho', horarioLimite: '10:30', ordem: 5 } }),
+    prisma.checklistItem.create({ data: { titulo: 'Conferir pedidos do dia', horarioLimite: '11:00', ordem: 6 } }),
+    prisma.checklistItem.create({ data: { titulo: 'Tirar o lixo', horarioLimite: '17:00', ordem: 7 } }),
+    prisma.checklistItem.create({ data: { titulo: 'Fechar e travar a loja', horarioLimite: '18:30', ordem: 8 } }),
+  ]);
+
+  // Registros de hoje — ~60% marcados como feitos
+  const hojeDate = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate());
+  const marcadores = [ana, carlos, julia, ana, carlos]; // quem marcou cada item
+
+  for (let i = 0; i < 5; i++) {
+    const item = itensChecklist[i]!;
+    const marcador = marcadores[i]!;
+    const [h = 9, m = 0] = (item.horarioLimite ?? '09:00').split(':').map(Number);
+    const feitoEm = new Date(hoje);
+    feitoEm.setHours(h, m - Math.floor(Math.random() * 10), 0, 0);
+
+    await prisma.checklistRegistro.create({
+      data: {
+        itemId: item.id,
+        userId: marcador.id,
+        data: hojeDate,
+        feito: true,
+        feitoEm,
+      },
+    });
+  }
+
+  console.log('✅ Checklist criado');
   console.log('🎉 Seed finalizado com sucesso!');
 }
 

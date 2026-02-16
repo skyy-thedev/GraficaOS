@@ -56,3 +56,12 @@ export async function remove(req: Request, res: Response, next: NextFunction): P
     next(error);
   }
 }
+
+export async function hardRemove(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const user = await userService.hardDeleteUser(req.params.id!);
+    res.json(user);
+  } catch (error) {
+    next(error);
+  }
+}

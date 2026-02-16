@@ -19,7 +19,7 @@ import {
   DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog';
-import { useUsers, useCreateUser, useUpdateUser, useDeleteUser } from '@/hooks/useUsers';
+import { useUsers, useCreateUser, useUpdateUser, useDeleteUser, useHardDeleteUser } from '@/hooks/useUsers';
 import { usePontos } from '@/hooks/usePonto';
 import { useArtes } from '@/hooks/useArtes';
 import { useAuth } from '@/hooks/useAuth';
@@ -32,6 +32,9 @@ import {
   UserCheck,
   Shield,
   ShieldCheck,
+  Users as UsersIcon,
+  Palette,
+  Trash2,
 } from 'lucide-react';
 
 const AVATAR_COLORS = [
@@ -205,13 +208,14 @@ export function FuncionariosPage() {
   const { data: allPontos } = usePontos();
   const { data: artes } = useArtes();
   const deleteUser = useDeleteUser();
+  const hardDeleteUser = useHardDeleteUser();
   const updateUser = useUpdateUser();
   const { user: currentUser } = useAuth();
   const addToast = useToastStore.getState().addToast;
 
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editUser, setEditUser] = useState<User | null>(null);
-  const [confirmDeactivate, setConfirmDeactivate] = useState<{ id: string; name: string } | null>(null);
+  const [confirmRemove, setConfirmRemove] = useState<{ id: string; name: string; active: boolean } | null>(null);
 
   const activeUsers = users?.filter((u) => u.active) ?? [];
   const allUsers = users ?? [];
@@ -231,14 +235,20 @@ export function FuncionariosPage() {
   const artesAtivasTotal = artesAtivas.length;
   const ausentesHoje = activeCount - presentesToday;
 
-  const handleDeactivate = (userId: string, userName: string) => {
-    setConfirmDeactivate({ id: userId, name: userName });
+  const handleRemove = (u: User) => {
+    setConfirmRemove({ id: u.id, name: u.name, active: u.active });
   };
 
   const executeDeactivate = async () => {
-    if (!confirmDeactivate) return;
-    await deleteUser.mutateAsync(confirmDeactivate.id);
-    setConfirmDeactivate(null);
+    if (!confirmRemove) return;
+    await deleteUser.mutateAsync(confirmRemove.id);
+    setConfirmRemove(null);
+  };
+
+  const executeHardDelete = async () => {
+    if (!confirmRemove) return;
+    await hardDeleteUser.mutateAsync(confirmRemove.id);
+    setConfirmRemove(null);
   };
 
   const handleReactivate = async (userId: string) => {
@@ -265,30 +275,41 @@ export function FuncionariosPage() {
     return `${months[date.getMonth()]} ${date.getFullYear()}`;
   }
 
-  const statsCards = [
-    { label: 'Total de funcionários', value: totalCount, bg: 'var(--accent)' },
-    { label: 'Presentes hoje', value: presentesToday, bg: 'var(--green)' },
-    { label: 'Artes ativas', value: artesAtivasTotal, bg: 'var(--yellow)' },
-    { label: 'Ausentes hoje', value: ausentesHoje > 0 ? ausentesHoje : 0, bg: 'var(--red)' },
-  ];
-
   return (
     <>
       <Topbar title="Funcionários" />
 
       <div className="page-wrapper p-7 flex flex-col gap-6">
         {/* Stat cards */}
-        <div className="stat-grid grid gap-4 grid-cols-4">
-          {statsCards.map((stat) => (
-            <div
-              key={stat.label}
-              className="stat-card"
-              style={{ background: stat.bg }}
-            >
-              <p className="stat-label-sm">{stat.label}</p>
-              <p className="stat-value">{stat.value}</p>
+        <div className="dash-stats-grid">
+          <div className="dash-stat-card dash-stat-purple">
+            <div className="dash-stat-icon-wrap dash-stat-icon-purple"><UsersIcon size={18} /></div>
+            <div className="dash-stat-info">
+              <span className="dash-stat-number">{totalCount}</span>
+              <span className="dash-stat-label">Total de funcionários</span>
             </div>
-          ))}
+          </div>
+          <div className="dash-stat-card dash-stat-green">
+            <div className="dash-stat-icon-wrap dash-stat-icon-green"><UserCheck size={18} /></div>
+            <div className="dash-stat-info">
+              <span className="dash-stat-number">{presentesToday}</span>
+              <span className="dash-stat-label">Presentes hoje</span>
+            </div>
+          </div>
+          <div className="dash-stat-card dash-stat-yellow">
+            <div className="dash-stat-icon-wrap dash-stat-icon-yellow"><Palette size={18} /></div>
+            <div className="dash-stat-info">
+              <span className="dash-stat-number">{artesAtivasTotal}</span>
+              <span className="dash-stat-label">Artes ativas</span>
+            </div>
+          </div>
+          <div className="dash-stat-card dash-stat-red">
+            <div className="dash-stat-icon-wrap dash-stat-icon-red"><UserX size={18} /></div>
+            <div className="dash-stat-info">
+              <span className="dash-stat-number">{ausentesHoje > 0 ? ausentesHoje : 0}</span>
+              <span className="dash-stat-label">Ausentes hoje</span>
+            </div>
+          </div>
         </div>
 
         {/* Header + Botão novo */}
@@ -425,16 +446,7 @@ export function FuncionariosPage() {
                                 >
                                   <Edit2 size={14} />
                                 </button>
-                                {u.active ? (
-                                  <button
-                                    onClick={() => handleDeactivate(u.id, u.name)}
-                                    disabled={deleteUser.isPending}
-                                    className="flex h-8 w-8 items-center justify-center rounded-lg transition-colors hover-bg-red text-red"
-                                    title="Desativar"
-                                  >
-                                    <UserX size={14} />
-                                  </button>
-                                ) : (
+                                {!u.active && (
                                   <button
                                     onClick={() => handleReactivate(u.id)}
                                     disabled={updateUser.isPending}
@@ -444,6 +456,13 @@ export function FuncionariosPage() {
                                     <UserCheck size={14} />
                                   </button>
                                 )}
+                                <button
+                                  onClick={() => handleRemove(u)}
+                                  className="flex h-8 w-8 items-center justify-center rounded-lg transition-colors hover-bg-red text-red"
+                                  title="Remover"
+                                >
+                                  <Trash2 size={14} />
+                                </button>
                               </div>
                             ) : (
                               <span
@@ -474,26 +493,45 @@ export function FuncionariosPage() {
         editUser={editUser}
       />
 
-      {/* Confirm Dialog para desativação */}
-      <Dialog open={!!confirmDeactivate} onOpenChange={(o) => !o && setConfirmDeactivate(null)}>
+      {/* Confirm Dialog para remoção — 3 opções */}
+      <Dialog open={!!confirmRemove} onOpenChange={(o) => !o && setConfirmRemove(null)}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
-            <DialogTitle>Desativar funcionário?</DialogTitle>
+            <DialogTitle>Remover funcionário</DialogTitle>
             <DialogDescription>
-              Tem certeza que deseja desativar {confirmDeactivate?.name}? O funcionário não poderá acessar o sistema.
+              O que deseja fazer com <strong>{confirmRemove?.name}</strong>?
             </DialogDescription>
           </DialogHeader>
-          <DialogFooter className="gap-2">
-            <Button variant="ghost" onClick={() => setConfirmDeactivate(null)}>
+          <div className="flex flex-col gap-2 mt-2">
+            {confirmRemove?.active && (
+              <button
+                onClick={executeDeactivate}
+                disabled={deleteUser.isPending}
+                className="func-action-btn func-action-deactivate"
+              >
+                <UserX size={16} />
+                <div className="func-action-btn-text">
+                  <span className="func-action-btn-title">Desativar</span>
+                  <span className="func-action-btn-desc">O funcionário não poderá acessar o sistema, mas os dados serão mantidos.</span>
+                </div>
+              </button>
+            )}
+            <button
+              onClick={executeHardDelete}
+              disabled={hardDeleteUser.isPending}
+              className="func-action-btn func-action-delete"
+            >
+              <Trash2 size={16} />
+              <div className="func-action-btn-text">
+                <span className="func-action-btn-title">Excluir permanentemente</span>
+                <span className="func-action-btn-desc">Remove o funcionário e todos os registros associados. Ação irreversível.</span>
+              </div>
+            </button>
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setConfirmRemove(null)}>
               Cancelar
             </Button>
-            <button
-              onClick={executeDeactivate}
-              disabled={deleteUser.isPending}
-              className="inline-flex items-center justify-center rounded-md px-4 py-2 text-sm font-medium transition-colors btn-delete-confirm"
-            >
-              Desativar
-            </button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

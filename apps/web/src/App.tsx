@@ -6,6 +6,7 @@ import { DashboardPage } from '@/pages/Dashboard';
 import { PontoPage } from '@/pages/Ponto';
 import { GestaoPontosPage } from '@/pages/GestaoPontos';
 import { ArtesPage } from '@/pages/Artes';
+import { ChecklistPage } from '@/pages/ChecklistDiario';
 import { FuncionariosPage } from '@/pages/Funcionarios';
 
 export function App() {
@@ -19,6 +20,7 @@ export function App() {
         <Route element={<AppLayout />}>
           <Route path="/" element={<DashboardPage />} />
           <Route path="/ponto" element={<PontoPage />} />
+          <Route path="/checklist" element={<ChecklistPage />} />
           <Route path="/gestao-pontos" element={<GestaoPontosPage />} />
           <Route path="/artes" element={<ArtesPage />} />
           <Route path="/funcionarios" element={<FuncionariosPage />} />

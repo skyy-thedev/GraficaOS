@@ -11,7 +11,7 @@ import {
 } from '@/components/ui/select';
 import { useRelatorio } from '@/hooks/usePonto';
 import { useUsers } from '@/hooks/useUsers';
-import { Download, Clock } from 'lucide-react';
+import { Download, Clock, ClipboardList, CheckCircle, Users as UsersIcon, UserX } from 'lucide-react';
 import { useState } from 'react';
 import { format } from 'date-fns';
 import type { Ponto } from '@/types';
@@ -86,22 +86,35 @@ export function GestaoPontosPage() {
       <div className="page-wrapper p-7 flex flex-col gap-6">
         {/* Stat cards */}
         
-        <div className="stat-grid grid gap-4 grid-cols-4">
-          {[
-            { label: 'Registros', value: totalRegistros, bg: 'var(--accent)' },
-            { label: 'Completos', value: completosCount, bg: 'var(--green)' },
-            { label: 'Trabalhando', value: trabalhandoCount, bg: 'var(--blue)' },
-            { label: 'Ausentes', value: ausentesCount > 0 ? ausentesCount : 0, bg: 'var(--red)' },
-          ].map((stat) => (
-            <div
-              key={stat.label}
-              className="stat-card"
-              style={{ background: stat.bg }}
-            >
-              <p className="stat-label-sm">{stat.label}</p>
-              <p className="stat-value">{stat.value}</p>
+        <div className="dash-stats-grid">
+          <div className="dash-stat-card dash-stat-purple">
+            <div className="dash-stat-icon-wrap dash-stat-icon-purple"><ClipboardList size={18} /></div>
+            <div className="dash-stat-info">
+              <span className="dash-stat-number">{totalRegistros}</span>
+              <span className="dash-stat-label">Registros</span>
             </div>
-          ))}
+          </div>
+          <div className="dash-stat-card dash-stat-green">
+            <div className="dash-stat-icon-wrap dash-stat-icon-green"><CheckCircle size={18} /></div>
+            <div className="dash-stat-info">
+              <span className="dash-stat-number">{completosCount}</span>
+              <span className="dash-stat-label">Completos</span>
+            </div>
+          </div>
+          <div className="dash-stat-card dash-stat-blue">
+            <div className="dash-stat-icon-wrap dash-stat-icon-blue"><UsersIcon size={18} /></div>
+            <div className="dash-stat-info">
+              <span className="dash-stat-number">{trabalhandoCount}</span>
+              <span className="dash-stat-label">Trabalhando</span>
+            </div>
+          </div>
+          <div className="dash-stat-card dash-stat-red">
+            <div className="dash-stat-icon-wrap dash-stat-icon-red"><UserX size={18} /></div>
+            <div className="dash-stat-info">
+              <span className="dash-stat-number">{ausentesCount > 0 ? ausentesCount : 0}</span>
+              <span className="dash-stat-label">Ausentes</span>
+            </div>
+          </div>
         </div>
 
         {/* Filtros + Exportar */}

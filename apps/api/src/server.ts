@@ -7,6 +7,7 @@ import { authRoutes } from './routes/auth.routes';
 import { userRoutes } from './routes/user.routes';
 import { pontoRoutes } from './routes/ponto.routes';
 import { arteRoutes } from './routes/arte.routes';
+import { checklistRoutes } from './routes/checklist.routes';
 
 const app = express();
 
@@ -29,6 +30,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/pontos', pontoRoutes);
 app.use('/api/artes', arteRoutes);
+app.use('/api/checklist', checklistRoutes);
 
 // Health check
 app.get('/api/health', (_req, res) => {

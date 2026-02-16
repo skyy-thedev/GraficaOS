@@ -58,3 +58,19 @@ export function useDeleteUser() {
     },
   });
 }
+
+export function useHardDeleteUser() {
+  const queryClient = useQueryClient();
+  const addToast = useToastStore.getState().addToast;
+
+  return useMutation({
+    mutationFn: (id: string) => usersApi.hardDelete(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['users'] });
+      addToast({ icon: '🗑️', title: 'Funcionário excluído permanentemente' });
+    },
+    onError: () => {
+      addToast({ icon: '❌', title: 'Erro ao excluir funcionário' });
+    },
+  });
+}

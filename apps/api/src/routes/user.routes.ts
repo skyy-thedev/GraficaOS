@@ -12,5 +12,6 @@ router.get('/', userController.list);
 router.post('/', userController.create);
 router.put('/:id', userController.update);
 router.delete('/:id', userController.remove);
+router.delete('/:id/permanent', userController.hardRemove);
 
 export { router as userRoutes };

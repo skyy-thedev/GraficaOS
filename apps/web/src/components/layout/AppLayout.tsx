@@ -1,5 +1,6 @@
 import { Outlet } from 'react-router-dom';
 import { Sidebar } from './Sidebar';
+import { MobileNav } from './MobileNav';
 
 export function AppLayout() {
   return (
@@ -8,6 +9,7 @@ export function AppLayout() {
       <main className="main-content min-h-screen transition-all">
         <Outlet />
       </main>
+      <MobileNav />
     </div>
   );
 }

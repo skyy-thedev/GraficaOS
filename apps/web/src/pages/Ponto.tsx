@@ -1,14 +1,13 @@
 import { Topbar } from '@/components/layout/Topbar';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { usePontoHoje, useBaterPonto, useRelatorio } from '@/hooks/usePonto';
 import { useState, useEffect } from 'react';
 import { format, startOfWeek, endOfWeek } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { Clock, Calendar, Timer, LogIn, Coffee, RotateCcw, LogOut, CheckCircle } from 'lucide-react';
 import type { Ponto } from '@/types';
 
 // ===== Helpers =====
 
-/** Calcula horas trabalhadas: (saída - entrada) - (retorno - almoço) */
 function calcularHoras(ponto: Ponto): string | null {
   if (!ponto.entrada || !ponto.saida) return null;
   let totalMs = new Date(ponto.saida).getTime() - new Date(ponto.entrada).getTime();
@@ -21,62 +20,44 @@ function calcularHoras(ponto: Ponto): string | null {
   return `${h}h${m.toString().padStart(2, '0')}m`;
 }
 
-/** Status do ponto */
+function calcularHorasEmCurso(ponto: Ponto): string | null {
+  if (!ponto.entrada) return null;
+  const now = new Date();
+  let totalMs = now.getTime() - new Date(ponto.entrada).getTime();
+  if (ponto.almoco && ponto.retorno) {
+    totalMs -= new Date(ponto.retorno).getTime() - new Date(ponto.almoco).getTime();
+  } else if (ponto.almoco && !ponto.retorno) {
+    totalMs -= now.getTime() - new Date(ponto.almoco).getTime();
+  }
+  if (totalMs < 0) totalMs = 0;
+  const totalMinutes = Math.floor(totalMs / 60000);
+  const h = Math.floor(totalMinutes / 60);
+  const m = totalMinutes % 60;
+  return `${h}h${m.toString().padStart(2, '0')}m`;
+}
+
 function getPontoStatusLabel(p: Ponto): { label: string; color: string } {
   if (p.saida) return { label: 'Completo', color: 'var(--green)' };
   if (p.entrada) return { label: 'Parcial', color: 'var(--yellow)' };
   return { label: 'Falta', color: 'var(--red)' };
 }
 
-/** Estado do botão dinâmico */
 function getButtonState(pontoHoje: Ponto | null | undefined) {
   if (!pontoHoje || !pontoHoje.entrada) {
-    return {
-      label: 'Registrar Entrada',
-      gradient: 'linear-gradient(135deg, #22d3a0, #1ab87e)',
-      shadow: 'rgba(34,211,160,0.3)',
-      color: '#fff',
-      disabled: false,
-    };
+    return { label: 'Registrar Entrada', icon: LogIn, gradient: 'linear-gradient(135deg, #22d3a0, #1ab87e)', shadow: 'rgba(34,211,160,0.25)', color: '#fff', disabled: false };
   }
   if (!pontoHoje.almoco) {
-    return {
-      label: 'Saída para Almoço',
-      gradient: 'linear-gradient(135deg, #f5c542, #e0a800)',
-      shadow: 'rgba(245,197,66,0.3)',
-      color: '#0a0a0f',
-      disabled: false,
-    };
+    return { label: 'Saída Almoço', icon: Coffee, gradient: 'linear-gradient(135deg, #f5c542, #e0a800)', shadow: 'rgba(245,197,66,0.25)', color: '#0a0a0f', disabled: false };
   }
   if (!pontoHoje.retorno) {
-    return {
-      label: 'Retorno do Almoço',
-      gradient: 'linear-gradient(135deg, #4db8ff, #2196e0)',
-      shadow: 'rgba(77,184,255,0.3)',
-      color: '#fff',
-      disabled: false,
-    };
+    return { label: 'Retorno Almoço', icon: RotateCcw, gradient: 'linear-gradient(135deg, #4db8ff, #2196e0)', shadow: 'rgba(77,184,255,0.25)', color: '#fff', disabled: false };
   }
   if (!pontoHoje.saida) {
-    return {
-      label: 'Registrar Saída',
-      gradient: 'linear-gradient(135deg, #ff5e5e, #e03030)',
-      shadow: 'rgba(255,94,94,0.3)',
-      color: '#fff',
-      disabled: false,
-    };
+    return { label: 'Registrar Saída', icon: LogOut, gradient: 'linear-gradient(135deg, #ff5e5e, #e03030)', shadow: 'rgba(255,94,94,0.25)', color: '#fff', disabled: false };
   }
-  return {
-    label: 'Expediente Encerrado',
-    gradient: 'none',
-    shadow: 'none',
-    color: 'var(--text2)',
-    disabled: true,
-    bg: 'var(--bg4)',
-  };
+  return { label: 'Expediente Encerrado', icon: CheckCircle, gradient: 'none', shadow: 'none', color: 'var(--text3)', disabled: true, bg: 'var(--bg3)' };
 }
 
-/** Status visual para "trabalhando agora" */
 function getWorkingStatus(pontoHoje: Ponto | null | undefined): { label: string; dotColor: string } | null {
   if (!pontoHoje || !pontoHoje.entrada) return null;
   if (pontoHoje.saida) return { label: 'Expediente encerrado', dotColor: 'var(--green)' };
@@ -85,20 +66,16 @@ function getWorkingStatus(pontoHoje: Ponto | null | undefined): { label: string;
   return { label: 'Trabalhando', dotColor: 'var(--green)' };
 }
 
-/** Formata horário ou retorna '--:--' */
 function fmtTime(dateStr: string | null): string {
   if (!dateStr) return '—';
   return format(new Date(dateStr), 'HH:mm');
 }
 
-/** Gera CSV a partir de pontos — moved to GestaoPontos.tsx */
-
-// ===== Timeline item do dia =====
 const TIMELINE_ITEMS = [
-  { key: 'entrada' as const, label: 'Entrada', emoji: '🟢', color: 'var(--green)', dimColor: 'var(--green-dim)' },
-  { key: 'almoco' as const, label: 'Saída Almoço', emoji: '🟡', color: 'var(--yellow)', dimColor: 'var(--yellow-dim)' },
-  { key: 'retorno' as const, label: 'Retorno', emoji: '🔵', color: 'var(--blue)', dimColor: 'var(--blue-dim)' },
-  { key: 'saida' as const, label: 'Saída', emoji: '🔴', color: 'var(--red)', dimColor: 'var(--red-dim)' },
+  { key: 'entrada' as const, label: 'Entrada', icon: LogIn, color: 'var(--green)', dimColor: 'var(--green-dim)' },
+  { key: 'almoco' as const, label: 'Saída Almoço', icon: Coffee, color: 'var(--yellow)', dimColor: 'var(--yellow-dim)' },
+  { key: 'retorno' as const, label: 'Retorno', icon: RotateCcw, color: 'var(--blue)', dimColor: 'var(--blue-dim)' },
+  { key: 'saida' as const, label: 'Saída', icon: LogOut, color: 'var(--red)', dimColor: 'var(--red-dim)' },
 ];
 
 // ===== Componente principal =====
@@ -107,13 +84,11 @@ export function PontoPage() {
   const baterPonto = useBaterPonto();
   const [currentTime, setCurrentTime] = useState(new Date());
 
-  // Relógio em tempo real
   useEffect(() => {
     const interval = setInterval(() => setCurrentTime(new Date()), 1000);
     return () => clearInterval(interval);
   }, []);
 
-  // Semana atual para histórico pessoal
   const hoje = new Date();
   const weekStart = format(startOfWeek(hoje, { weekStartsOn: 1 }), 'yyyy-MM-dd');
   const weekEnd = format(endOfWeek(hoje, { weekStartsOn: 1 }), 'yyyy-MM-dd');
@@ -122,17 +97,20 @@ export function PontoPage() {
     endDate: weekEnd,
   });
 
-  // Estado do botão
   const btnState = getButtonState(pontoHoje);
+  const BtnIcon = btnState.icon;
   const workingStatus = getWorkingStatus(pontoHoje);
-
-  // Horas do dia
   const horasHoje = pontoHoje ? calcularHoras(pontoHoje) : null;
+  const horasEmCurso = pontoHoje && !pontoHoje.saida ? calcularHorasEmCurso(pontoHoje) : null;
 
-  // Formatação do relógio
   const hours = format(currentTime, 'HH');
   const minutes = format(currentTime, 'mm');
   const seconds = format(currentTime, 'ss');
+
+  // Contagem de etapas completadas
+  const stepsCompleted = pontoHoje
+    ? [pontoHoje.entrada, pontoHoje.almoco, pontoHoje.retorno, pontoHoje.saida].filter(Boolean).length
+    : 0;
 
   return (
     <>
@@ -141,278 +119,207 @@ export function PontoPage() {
         subtitle={format(hoje, "EEEE, dd 'de' MMMM", { locale: ptBR })}
       />
 
-      <div className="page-wrapper p-7 flex flex-col gap-6">
-        {/* ===== Hero: Relógio + Timeline ===== */}
-        <div className="ponto-hero-grid grid gap-6">
-          {/* Card Relógio */}
-          <Card className="relative overflow-hidden">
-            <div
-              className="ponto-radial-bg absolute inset-0 pointer-events-none"
-            />
-            <CardContent className="relative flex flex-col items-center justify-center py-16 space-y-6">
-              {/* Relógio grande */}
-              <div className="ponto-clock flex items-baseline gap-0">
-                <span className="text-primary">{hours}</span>
-                <span className="text-accent2">:</span>
-                <span className="text-primary">{minutes}</span>
-                <span className="text-accent2">:</span>
-                <span className="text-primary">{seconds}</span>
-              </div>
+      <div className="page-wrapper ponto-page">
 
-              {/* Data */}
-              <p className="ponto-date-text">
-                {format(currentTime, "EEEE, dd 'de' MMMM 'de' yyyy", { locale: ptBR })}
-              </p>
+        {/* ===== SEÇÃO 1: Relógio + Ação ===== */}
+        <section className="ponto-clock-section">
+          {/* Relógio */}
+          <div className="ponto-clock-display">
+            <span className="ponto-digit">{hours}</span>
+            <span className="ponto-separator">:</span>
+            <span className="ponto-digit">{minutes}</span>
+            <span className="ponto-separator">:</span>
+            <span className="ponto-digit-sec">{seconds}</span>
+          </div>
 
-              {/* Botão dinâmico */}
-              {!isLoading && (
-                <button
-                  onClick={() => baterPonto.mutate()}
-                  disabled={btnState.disabled || baterPonto.isPending}
-                  className="ponto-btn"
+          {/* Data */}
+          <div className="ponto-date-row">
+            <Calendar size={14} />
+            <span>{format(currentTime, "EEEE, dd 'de' MMMM 'de' yyyy", { locale: ptBR })}</span>
+          </div>
+
+          {/* Status */}
+          {workingStatus && (
+            <div className="ponto-status-pill">
+              <span
+                className="ponto-status-dot"
+                style={{
+                  backgroundColor: workingStatus.dotColor,
+                  boxShadow: `0 0 8px ${workingStatus.dotColor}`,
+                }}
+              />
+              {workingStatus.label}
+            </div>
+          )}
+
+          {/* Botão */}
+          {!isLoading && (
+            <button
+              onClick={() => baterPonto.mutate()}
+              disabled={btnState.disabled || baterPonto.isPending}
+              className="ponto-action-btn"
+              style={{
+                background: btnState.bg ?? btnState.gradient,
+                color: btnState.color,
+                boxShadow: btnState.disabled ? 'none' : `0 6px 24px ${btnState.shadow}`,
+                opacity: baterPonto.isPending ? 0.7 : 1,
+              }}
+            >
+              <BtnIcon size={18} />
+              {baterPonto.isPending ? 'Registrando...' : btnState.label}
+            </button>
+          )}
+        </section>
+
+        {/* ===== SEÇÃO 2: Cards de Resumo ===== */}
+        <section className="ponto-summary-row">
+          <div className="ponto-mini-card">
+            <Clock size={16} style={{ color: 'var(--accent)' }} />
+            <div className="ponto-mini-info">
+              <span className="ponto-mini-label">Horas hoje</span>
+              <span className="ponto-mini-value" style={{ color: 'var(--accent)' }}>
+                {horasHoje ?? horasEmCurso ?? '—'}
+              </span>
+            </div>
+            {horasEmCurso && !horasHoje && (
+              <span className="ponto-mini-badge">em curso</span>
+            )}
+          </div>
+
+          <div className="ponto-mini-card">
+            <Timer size={16} style={{ color: 'var(--text2)' }} />
+            <div className="ponto-mini-info">
+              <span className="ponto-mini-label">Progresso</span>
+              <span className="ponto-mini-value">{stepsCompleted}/4</span>
+            </div>
+            <div className="ponto-progress-dots">
+              {[0, 1, 2, 3].map((i) => (
+                <span
+                  key={i}
+                  className="ponto-progress-dot"
                   style={{
-                    background: btnState.bg ?? btnState.gradient,
-                    color: btnState.color,
-                    boxShadow: btnState.disabled ? 'none' : `0 4px 20px ${btnState.shadow}`,
-                    cursor: btnState.disabled ? 'default' : 'pointer',
-                    opacity: baterPonto.isPending ? 0.7 : 1,
+                    background: i < stepsCompleted ? TIMELINE_ITEMS[i].color : 'var(--bg4)',
+                    boxShadow: i < stepsCompleted ? `0 0 6px ${TIMELINE_ITEMS[i].color}` : 'none',
                   }}
-                >
-                  {baterPonto.isPending ? 'Registrando...' : btnState.label}
-                </button>
-              )}
+                />
+              ))}
+            </div>
+          </div>
+        </section>
 
-              {/* Status trabalhando */}
-              {workingStatus && (
-                <div className="flex items-center gap-2 text-24 text-secondary">
-                  <span
-                    className="inline-block h-2 w-2 rounded-full animate-pulse-slow"
-                    style={{
-                      backgroundColor: workingStatus.dotColor,
-                      boxShadow: `0 0 6px ${workingStatus.dotColor}`,
-                    }}
-                  />
-                  {workingStatus.label}
-                </div>
-              )}
-            </CardContent>
-          </Card>
+        {/* ===== SEÇÃO 3: Timeline do dia ===== */}
+        <section className="ponto-card">
+          <div className="ponto-card-header">
+            <Clock size={16} />
+            <span>Registro de hoje</span>
+          </div>
+          <div className="ponto-timeline">
+            {isLoading ? (
+              [1, 2, 3, 4].map((i) => (
+                <div key={i} className="skeleton" style={{ height: 52 }} />
+              ))
+            ) : (
+              TIMELINE_ITEMS.map((item, idx) => {
+                const timeVal = pontoHoje?.[item.key] ?? null;
+                const filled = !!timeVal;
+                const Icon = item.icon;
 
-          {/* Card Timeline do dia */}
-          <Card className="flex flex-col">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-18 text-primary font-semibold">
-                Registro de hoje
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-0">
-              {isLoading ? (
-                <div className="space-y-4 py-4">
-                  {[1, 2, 3, 4].map((i) => (
-                    <div key={i} className="skeleton h-12 w-full" />
-                  ))}
-                </div>
-              ) : (
-                TIMELINE_ITEMS.map((item, idx) => {
-                  const timeVal = pontoHoje?.[item.key] ?? null;
-                  const filled = !!timeVal;
-
-                  return (
+                return (
+                  <div key={item.key} className={`ponto-timeline-item${idx < 3 ? ' ponto-timeline-divider' : ''}`}>
+                    {/* Ícone */}
                     <div
-                      key={item.key}
-                      className={`flex items-center gap-3 py-3 ${idx < TIMELINE_ITEMS.length - 1 ? 'border-b-theme' : ''}`}
+                      className="ponto-timeline-icon"
+                      style={{
+                        background: filled ? item.dimColor : 'var(--bg4)',
+                        color: filled ? item.color : 'var(--text3)',
+                        border: filled ? `1px solid ${item.color}` : '1.5px dashed var(--border2)',
+                      }}
                     >
-                      {/* Dot */}
-                      <div
-                        className="flex h-8 w-8 items-center justify-center rounded-full text-sm shrink-0"
-                        style={{
-                          background: filled ? item.dimColor : 'var(--bg4)',
-                          border: filled ? 'none' : '1.5px dashed var(--border2)',
-                        } as React.CSSProperties}
-                      >
-                        {filled ? item.emoji : ''}
-                      </div>
+                      <Icon size={14} />
+                    </div>
 
-                      {/* Horário e label */}
-                      <div className="flex-1">
-                        <span
-                          className="block text-sm text-muted font-mono"
-                        >
-                          {item.label}
-                        </span>
-                      </div>
+                    {/* Label */}
+                    <span className="ponto-timeline-label">{item.label}</span>
+
+                    {/* Hora */}
+                    <span
+                      className="ponto-timeline-time"
+                      style={{ color: filled ? item.color : 'var(--text3)' }}
+                    >
+                      {filled ? fmtTime(timeVal) : '—'}
+                    </span>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </section>
+
+        {/* ===== SEÇÃO 4: Histórico Semanal ===== */}
+        <section className="ponto-card">
+          <div className="ponto-card-header">
+            <Calendar size={16} />
+            <span>Histórico da Semana</span>
+            {historicoSemanal && historicoSemanal.length > 0 && (
+              <span className="ponto-header-count">{historicoSemanal.length}</span>
+            )}
+          </div>
+
+          {loadingHistorico ? (
+            <div className="ponto-card-body" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {[1, 2, 3, 4, 5].map((i) => (
+                <div key={i} className="skeleton" style={{ height: 48 }} />
+              ))}
+            </div>
+          ) : !historicoSemanal || historicoSemanal.length === 0 ? (
+            <div className="ponto-card-body ponto-empty">
+              <Calendar size={32} />
+              <span>Nenhum registro nesta semana</span>
+            </div>
+          ) : (
+            <div className="ponto-card-body ponto-hist-list">
+              {historicoSemanal.map((p) => {
+                const horas = calcularHoras(p);
+                const status = getPontoStatusLabel(p);
+                const isToday = new Date(p.date).toDateString() === new Date().toDateString();
+                const dayLabel = format(new Date(p.date), "EEE, dd/MM", { locale: ptBR });
+
+                return (
+                  <div key={p.id} className={`ponto-hist-row${isToday ? ' ponto-hist-today' : ''}`}>
+                    {/* Dia */}
+                    <div className="ponto-hist-day">
+                      {isToday && <span className="ponto-today-dot" />}
+                      <span className="ponto-hist-day-text">{dayLabel}</span>
+                    </div>
+
+                    {/* Horários */}
+                    <div className="ponto-hist-times">
+                      <span style={{ color: p.entrada ? 'var(--green)' : 'var(--text3)' }}>{fmtTime(p.entrada)}</span>
+                      <span className="ponto-hist-sep">→</span>
+                      <span style={{ color: p.saida ? 'var(--red)' : 'var(--text3)' }}>{fmtTime(p.saida)}</span>
+                    </div>
+
+                    {/* Horas + Status */}
+                    <div className="ponto-hist-meta">
+                      <span className="ponto-hist-hours">{horas ?? '—'}</span>
                       <span
-                        className="mono-14"
-                        style={{ color: filled ? item.color : 'var(--text3)' }}
+                        className="ponto-hist-status"
+                        style={{
+                          background: status.label === 'Completo' ? 'var(--green-dim)' : status.label === 'Parcial' ? 'var(--yellow-dim)' : 'var(--red-dim)',
+                          color: status.color,
+                        }}
                       >
-                        {filled ? fmtTime(timeVal) : 'Pendente'}
+                        {status.label}
                       </span>
                     </div>
-                  );
-                })
-              )}
-            </CardContent>
-          </Card>
-        </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </section>
 
-        {/* ===== 2B: Card de Resumo do Dia ===== */}
-        <div className="ponto-summary-grid grid grid-cols-4 gap-4">
-          {[
-            { label: 'ENTRADA', value: fmtTime(pontoHoje?.entrada ?? null), color: 'var(--green)', dimColor: 'var(--green-dim)' },
-            { label: 'ALMOÇO', value: fmtTime(pontoHoje?.almoco ?? null), color: 'var(--yellow)', dimColor: 'var(--yellow-dim)' },
-            { label: 'RETORNO', value: fmtTime(pontoHoje?.retorno ?? null), color: 'var(--blue)', dimColor: 'var(--blue-dim)' },
-            { label: 'HORAS', value: horasHoje ?? (pontoHoje?.entrada ? 'em curso' : '—'), color: 'var(--accent)', dimColor: 'var(--accent-glow)' },
-          ].map((item) => (
-            <Card key={item.label}>
-              <CardContent className="py-4 px-5 text-center">
-                <span
-                  className="block text-18 mb-2 uppercase tracking-wider mono-label"
-                >
-                  {item.label}
-                </span>
-                <span
-                  className="inline-block px-3 py-1 rounded-full font-medium font-mono text-24"
-                  style={{
-                    background: item.dimColor,
-                    color: item.color,
-                    border: `1px solid ${item.color}`,
-                  }}
-                >
-                  {item.value}
-                </span>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-
-        {/* ===== 2C: Histórico Semanal ===== */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-24 text-primary font-semibold">
-              Histórico da Semana
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {loadingHistorico ? (
-              <div className="space-y-3">
-                {[1, 2, 3, 4, 5].map((i) => (
-                  <div key={i} className="skeleton h-10 w-full" />
-                ))}
-              </div>
-            ) : !historicoSemanal || historicoSemanal.length === 0 ? (
-              <p className="text-center py-8 text-muted text-24">
-                Nenhum registro nesta semana.
-              </p>
-            ) : (
-              <TabelaPontos pontos={historicoSemanal} showUser={false} />
-            )}
-          </CardContent>
-        </Card>
       </div>
     </>
   );
 }
-
-// ===== Tabela reutilizável de pontos =====
-function TabelaPontos({ pontos, showUser = false }: { pontos: Ponto[]; showUser?: boolean }) {
-  return (
-    <div className="table-wrapper overflow-x-auto">
-      <table className="w-full text-left table-text">
-        <thead>
-          <tr className="table-header-row">
-            {showUser && (
-              <th className="py-2 pr-4 th-cell">
-                Funcionário
-              </th>
-            )}
-            <th className="py-2 pr-4 th-cell">Data</th>
-            <th className="py-2 pr-4 th-cell">Entrada</th>
-            <th className="py-2 pr-4 th-cell">Almoço</th>
-            <th className="py-2 pr-4 th-cell">Retorno</th>
-            <th className="py-2 pr-4 th-cell">Saída</th>
-            <th className="py-2 pr-4 th-cell">Horas</th>
-            <th className="py-2 th-cell">Status</th>
-          </tr>
-        </thead>
-        <tbody>
-          {pontos.map((p) => {
-            const horas = calcularHoras(p);
-            const status = getPontoStatusLabel(p);
-            const isToday = new Date(p.date).toDateString() === new Date().toDateString();
-
-            return (
-              <tr key={p.id} className="table-body-row">
-                {showUser && (
-                  <td className="py-3 px-4">
-                    <div className="flex items-center gap-2">
-                      <div
-                        className="bg-dynamic flex h-7 w-7 items-center justify-center rounded-full text-11 font-bold text-white shrink-0"
-                        data-color={p.user.avatarColor}
-                      >
-                        {p.user.initials}
-                      </div>
-                      <span className="text-name">{p.user.name}</span>
-                    </div>
-                  </td>
-                )}
-                <td className="py-3 px-4 td-mono-text2">
-                  {format(new Date(p.date), 'dd/MM')}
-                </td>
-                <td className="py-3 px-4">
-                  <TimeTag value={p.entrada} color="var(--green)" dimColor="var(--green-dim)" />
-                </td>
-                <td className="py-3 px-4">
-                  <TimeTag value={p.almoco} color="var(--yellow)" dimColor="var(--yellow-dim)" />
-                </td>
-                <td className="py-3 px-4">
-                  <TimeTag value={p.retorno} color="var(--blue)" dimColor="var(--blue-dim)" />
-                </td>
-                <td className="py-3 px-4">
-                  <TimeTag value={p.saida} color="var(--red)" dimColor="var(--red-dim)" />
-                </td>
-                <td className="py-3 px-4 td-mono-accent">
-                  {horas ?? '—'}
-                </td>
-                <td className="py-3 px-4">
-                  {isToday ? (
-                    <span
-                      className="inline-block px-2 py-0-5 rounded-full text-18 font-medium tag-hoje"
-                    >
-                      Hoje
-                    </span>
-                  ) : (
-                    <span
-                      className="inline-block px-2 py-0-5 rounded-full text-18 font-medium font-mono"
-                      style={{ background: status.label === 'Completo' ? 'var(--green-dim)' : status.label === 'Parcial' ? 'var(--yellow-dim)' : 'var(--red-dim)', color: status.color, border: `1px solid ${status.color}` }}
-                    >
-                      {status.label}
-                    </span>
-                  )}
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
-    </div>
-  );
-}
-
-// ===== Tag de horário colorida =====
-function TimeTag({ value, color, dimColor }: { value: string | null; color: string; dimColor: string }) {
-  if (!value) {
-    return (
-      <span className="timetag-empty">—</span>
-    );
-  }
-  return (
-    <span
-      className="inline-block px-2 py-0-5 rounded text-20 timetag-filled"
-      style={{ background: dimColor, color }}
-    >
-      {format(new Date(value), 'HH:mm')}
-    </span>
-  );
-}
-
-// end of file

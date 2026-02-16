@@ -10,7 +10,12 @@ import type {
   CreateArteRequest,
   UpdateArteRequest,
   ArteStatus,
-} from '@/types';
+  ChecklistItemConfig,
+  ItemHoje,
+  RelatorioDia,
+  CreateChecklistItemRequest,
+  UpdateChecklistItemRequest,
+}from '@/types';
 
 // ===== Auth =====
 export const authApi = {
@@ -40,6 +45,9 @@ export const usersApi = {
 
   delete: (id: string) =>
     api.delete(`/users/${id}`).then((r) => r.data),
+
+  hardDelete: (id: string) =>
+    api.delete(`/users/${id}/permanent`).then((r) => r.data),
 };
 
 // ===== Pontos =====
@@ -84,4 +92,34 @@ export const artesApi = {
 
   deleteArquivo: (arteId: string, arquivoId: string) =>
     api.delete(`/artes/${arteId}/arquivos/${arquivoId}`),
+};
+
+// ===== Checklist =====
+export const checklistApi = {
+  // Itens (gerenciamento)
+  listarItens: () =>
+    api.get<ChecklistItemConfig[]>('/checklist/itens').then((r) => r.data),
+
+  criarItem: (data: CreateChecklistItemRequest) =>
+    api.post<ChecklistItemConfig>('/checklist/itens', data).then((r) => r.data),
+
+  editarItem: (id: string, data: UpdateChecklistItemRequest) =>
+    api.put<ChecklistItemConfig>(`/checklist/itens/${id}`, data).then((r) => r.data),
+
+  toggleItem: (id: string) =>
+    api.patch<ChecklistItemConfig>(`/checklist/itens/${id}/toggle`).then((r) => r.data),
+
+  deletarItem: (id: string) =>
+    api.delete(`/checklist/itens/${id}`).then((r) => r.data),
+
+  // Registros do dia
+  hoje: () =>
+    api.get<ItemHoje[]>('/checklist/hoje').then((r) => r.data),
+
+  marcar: (itemId: string) =>
+    api.post<ItemHoje[]>(`/checklist/marcar/${itemId}`).then((r) => r.data),
+
+  // Relatório
+  relatorio: (params: { startDate: string; endDate: string }) =>
+    api.get<RelatorioDia[]>('/checklist/relatorio', { params }).then((r) => r.data),
 };

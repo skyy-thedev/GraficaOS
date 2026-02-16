@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Topbar } from '@/components/layout/Topbar';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -46,13 +46,13 @@ import {
   ImageIcon,
   X,
   GripVertical,
-  Eye,
 } from 'lucide-react';
 import {
   DndContext,
   closestCenter,
   KeyboardSensor,
   PointerSensor,
+  TouchSensor,
   useSensor,
   useSensors,
   DragEndEvent,
@@ -67,6 +67,7 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { format } from 'date-fns';
+import { API_BASE } from '@/services/api';
 
 // ===== Configurações =====
 const STATUS_CONFIG: Record<ArteStatus, { label: string; color: string }> = {
@@ -110,16 +111,19 @@ function SortableArteCard({
     isDragging,
   } = useSortable({ id: arte.id, data: { arte } });
 
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isDragging ? 0.5 : 1,
-  };
-
   const dragStyle = transform || transition ? {
     transform: CSS.Transform.toString(transform),
     transition,
   } : undefined;
+
+  // Track if we're dragging to prevent card click
+  const handleCardClick = () => {
+    if (!isDragging) {
+      onView(arte);
+    }
+  };
+
+  const isOverdue = arte.prazo && new Date(arte.prazo) < new Date() && arte.status !== 'DONE';
 
   return (
     <div
@@ -127,56 +131,47 @@ function SortableArteCard({
       className={isDragging ? 'opacity-50' : 'opacity-100'}
       {...(dragStyle ? { style: dragStyle } : {})}
     >
-      <Card className="cursor-pointer kanban-card-hover transition-colors group relative overflow-hidden">
-        {/* 3B — Left accent bar */}
+      <Card
+        className="cursor-pointer kanban-card-hover transition-colors group relative overflow-hidden"
+        onClick={handleCardClick}
+      >
+        {/* Left accent bar */}
         <div
           className="absolute left-0 top-0 bottom-0 rounded-sm"
           style={{ width: 3, background: STATUS_CONFIG[arte.status].color }}
         />
-        <CardContent className="p-4 pl-5 space-y-3">
+        <CardContent className="kanban-card-content p-4 pl-5 space-y-2">
+          {/* Row 1: Drag handle + Code + Urgency badge */}
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <button
                 title="Arrastar arte"
                 aria-label="Arrastar arte"
-                className="cursor-grab active-cursor-grabbing opacity-0 group-hover-visible transition-opacity kanban-drag-btn"
+                className="cursor-grab active-cursor-grabbing kanban-drag-handle"
+                onClick={(e) => e.stopPropagation()}
                 {...attributes}
                 {...listeners}
               >
-                <GripVertical size={35} />
+                <GripVertical size={18} />
               </button>
-              <span className="text-sm font-bold kanban-codigo">
+              <span className="font-bold kanban-codigo">
                 {arte.codigo}
               </span>
             </div>
-            <div className="flex items-center gap-1">
-              <Badge variant={URGENCIA_CONFIG[arte.urgencia].variant}>
-                {arte.urgencia === 'HIGH' && <AlertTriangle size={20} className="mr-1" />}
-                {URGENCIA_CONFIG[arte.urgencia].label}
-              </Badge>
-              <button
-                title="Ver detalhes"
-                aria-label="Ver detalhes"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onView(arte);
-                }}
-                className="ml-1 p-1 rounded opacity-0 group-hover-visible transition-all kanban-drag-btn"
-              >
-                <Eye size={30} />
-              </button>
-            </div>
+            <Badge variant={URGENCIA_CONFIG[arte.urgencia].variant}>
+              {arte.urgencia === 'HIGH' && <AlertTriangle size={12} className="mr-1" />}
+              {URGENCIA_CONFIG[arte.urgencia].label}
+            </Badge>
           </div>
 
-          <h4
-            className="font-semibold line-clamp-1 cursor-pointer transition-colors kanban-title"
-            onClick={() => onView(arte)}
-          >
+          {/* Row 2: Client name */}
+          <h4 className="font-semibold line-clamp-2 kanban-title">
             {arte.clienteNome}
           </h4>
 
-          <div className="flex items-center gap-2 text-sm kanban-meta">
-            <Palette size={24} />
+          {/* Row 3: Product + dimensions */}
+          <div className="flex items-center gap-2 kanban-meta">
+            <Palette size={14} className="shrink-0" />
             <span>{PRODUTO_OPTIONS.find(p => p.value === arte.produto)?.label ?? arte.produto}</span>
             <span className="kanban-dot-sep">·</span>
             <span className="kanban-meta-mono">
@@ -184,51 +179,50 @@ function SortableArteCard({
             </span>
           </div>
 
-          {/* Prazo + badge ATRASADO (3D) */}
+          {/* Row 4: Prazo + ATRASADO badge */}
           {arte.prazo && (
-            <div className="flex items-center gap-2 text-lg kanban-prazo">
-              <Clock size={24} />
+            <div className="flex items-center gap-2 kanban-prazo">
+              <Clock size={14} className="shrink-0" />
               <span>{format(new Date(arte.prazo), 'dd/MM')}</span>
-              {new Date(arte.prazo) < new Date() && arte.status !== 'DONE' && (
-                <span
-                  className="inline-block px-1-5 py-0-5 rounded-full kanban-atrasado"
-                >
+              {isOverdue && (
+                <span className="inline-block px-1-5 py-0-5 rounded-full kanban-atrasado">
                   ATRASADO
                 </span>
               )}
             </div>
           )}
 
+          {/* Row 5: Responsável + files + urgency dot */}
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <div
-                className="bg-dynamic flex h-6 w-6 items-center justify-center rounded-full text-10 font-bold text-white"
+                className="bg-dynamic flex h-6 w-6 items-center justify-center rounded-full text-10 font-bold text-white shrink-0"
                 data-color={arte.responsavel.avatarColor}
               >
                 {arte.responsavel.initials}
               </div>
-              <span className="text-sm kanban-responsavel-name">{arte.responsavel.name.split(' ')[0]}</span>
+              <span className="kanban-responsavel-name">{arte.responsavel.name.split(' ')[0]}</span>
             </div>
 
-            {/* 3C — Urgency dot with glow */}
-            <span
-              className="inline-block h-2-5 w-2-5 rounded-full"
-              style={{
-                background: arte.urgencia === 'HIGH' ? 'var(--red)' : arte.urgencia === 'NORMAL' ? 'var(--yellow)' : 'var(--green)',
-                boxShadow: arte.urgencia === 'HIGH'
-                  ? '0 0 6px var(--red)'
-                  : arte.urgencia === 'NORMAL'
-                    ? '0 0 4px var(--yellow)'
-                    : '0 0 4px var(--green)',
-              }}
-            />
+            <div className="flex items-center gap-2">
+              {arte.arquivos.length > 0 && (
+                <span className="kanban-files">
+                  📎 {arte.arquivos.length}
+                </span>
+              )}
+              <span
+                className="inline-block h-2-5 w-2-5 rounded-full shrink-0"
+                style={{
+                  background: arte.urgencia === 'HIGH' ? 'var(--red)' : arte.urgencia === 'NORMAL' ? 'var(--yellow)' : 'var(--green)',
+                  boxShadow: arte.urgencia === 'HIGH'
+                    ? '0 0 6px var(--red)'
+                    : arte.urgencia === 'NORMAL'
+                      ? '0 0 4px var(--yellow)'
+                      : '0 0 4px var(--green)',
+                }}
+              />
+            </div>
           </div>
-
-          {arte.arquivos.length > 0 && (
-            <div className="text-sm kanban-files">
-              📎 {arte.arquivos.length} arquivo{arte.arquivos.length > 1 ? 's' : ''}
-            </div>
-          )}
         </CardContent>
       </Card>
     </div>
@@ -304,34 +298,24 @@ function ArteFormModal({
   const updateArte = useUpdateArte();
   const activeUsers = users?.filter((u) => u.active) ?? [];
 
-  const [form, setForm] = useState<{
-    clienteNome: string;
-    clienteNumero: string;
-    orcamentoNum: string;
-    produto: ProdutoTipo;
-    quantidade: number;
-    largura: number;
-    altura: number;
-    responsavelId: string;
-    urgencia: Urgencia;
-    prazo: string;
-    observacoes: string;
-  }>({
+  const defaultForm = {
     clienteNome: '',
     clienteNumero: '',
     orcamentoNum: '',
-    produto: 'BANNER',
+    produto: 'BANNER' as ProdutoTipo,
     quantidade: 1,
     largura: 0,
     altura: 0,
     responsavelId: '',
-    urgencia: 'NORMAL',
+    urgencia: 'NORMAL' as Urgencia,
     prazo: '',
     observacoes: '',
-  });
+  };
 
-  // Preenche form quando editando
-  useState(() => {
+  const [form, setForm] = useState(defaultForm);
+
+  // Preenche form quando editando — useEffect para reagir a mudanças de editArte
+  useEffect(() => {
     if (editArte) {
       setForm({
         clienteNome: editArte.clienteNome,
@@ -346,8 +330,10 @@ function ArteFormModal({
         prazo: editArte.prazo ? (editArte.prazo.split('T')[0] ?? '') : '',
         observacoes: editArte.observacoes ?? '',
       });
+    } else {
+      setForm(defaultForm);
     }
-  });
+  }, [editArte]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -372,20 +358,6 @@ function ArteFormModal({
       await createArte.mutateAsync(data);
     }
     onClose();
-    // Reset form
-    setForm({
-      clienteNome: '',
-      clienteNumero: '',
-      orcamentoNum: '',
-      produto: 'BANNER',
-      quantidade: 1,
-      largura: 0,
-      altura: 0,
-      responsavelId: '',
-      urgencia: 'NORMAL',
-      prazo: '',
-      observacoes: '',
-    });
   };
 
   const isPending = createArte.isPending || updateArte.isPending;
@@ -731,7 +703,7 @@ function ArteDetailModal({
                     <div className="flex items-center gap-2 min-w-0">
                       {getFileIcon(arq.tipo)}
                       <a
-                        href={arq.url}
+                        href={`${API_BASE}${arq.url}`}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="text-xs text-primary hover-text-accent truncate transition-colors"
@@ -892,9 +864,10 @@ export function ArtesPage() {
     }, {} as Record<ArteStatus, Arte[]>);
   }, [filteredArtes]);
 
-  // Drag & drop
+  // Drag & drop — TouchSensor com delay para mobile (segura 200ms para arrastar)
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(PointerSensor, { activationConstraint: { distance: 10 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 5 } }),
     useSensor(KeyboardSensor)
   );
 
@@ -940,61 +913,64 @@ export function ArtesPage() {
 
       <div className="page-wrapper p-7 flex flex-col gap-5">
         {/* Toolbar */}
-        <div className="flex items-center gap-3 flex-wrap">
-          <div className="relative flex-1 max-w-md" style={{ minWidth: 200 }}>
+        <div className="artes-toolbar">
+          {/* Search */}
+          <div className="artes-toolbar-search relative">
             <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-subtle" />
             <Input
-              placeholder="Buscar por código, cliente, orçamento..."
+              placeholder="Buscar por código, cliente..."
               value={searchText}
               onChange={(e) => setSearchText(e.target.value)}
               className="pl-9"
             />
           </div>
 
-          <Select value={filterResponsavel} onValueChange={setFilterResponsavel}>
-            <SelectTrigger style={{ width: 200 }}>
-              <SelectValue placeholder="Responsável" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todos</SelectItem>
-              {activeUsers.map((u) => (
-                <SelectItem key={u.id} value={u.id}>
-                  {u.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          {/* Filters row */}
+          <div className="artes-toolbar-filters">
+            <Select value={filterResponsavel} onValueChange={setFilterResponsavel}>
+              <SelectTrigger className="artes-filter-select">
+                <SelectValue placeholder="Responsável" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos</SelectItem>
+                {activeUsers.map((u) => (
+                  <SelectItem key={u.id} value={u.id}>
+                    {u.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
 
-          <Select value={filterUrgencia} onValueChange={setFilterUrgencia}>
-            <SelectTrigger style={{ width: 180 }}>
-              <SelectValue placeholder="Urgência" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todas urgências</SelectItem>
-              <SelectItem value="HIGH">🔴 Urgente</SelectItem>
-              <SelectItem value="NORMAL">🟡 Normal</SelectItem>
-              <SelectItem value="LOW">🟢 Baixa</SelectItem>
-            </SelectContent>
-          </Select>
+            <Select value={filterUrgencia} onValueChange={setFilterUrgencia}>
+              <SelectTrigger className="artes-filter-select">
+                <SelectValue placeholder="Urgência" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todas urgências</SelectItem>
+                <SelectItem value="HIGH">🔴 Urgente</SelectItem>
+                <SelectItem value="NORMAL">🟡 Normal</SelectItem>
+                <SelectItem value="LOW">🟢 Baixa</SelectItem>
+              </SelectContent>
+            </Select>
 
-          {searchText && (
-            <Button variant="ghost" size="sm" onClick={() => setSearchText('')}>
-              <X size={14} />
-              Limpar
-            </Button>
-          )}
-
-          <div className="ml-auto">
-            <Button size="lg"onClick={() => setShowCreateModal(true)}>
-              <Plus size={20} />
-              Nova Arte
-            </Button>
+            {searchText && (
+              <Button variant="ghost" size="sm" onClick={() => setSearchText('')}>
+                <X size={14} />
+                Limpar
+              </Button>
+            )}
           </div>
+
+          {/* CTA */}
+          <Button size="lg" className="artes-btn-nova" onClick={() => setShowCreateModal(true)}>
+            <Plus size={18} />
+            Nova Arte
+          </Button>
         </div>
 
         {/* Kanban Board */}
         {isLoading ? (
-          <div className="kanban-grid grid grid-cols-4 gap-3">
+          <div className="kanban-board">
             {[1, 2, 3, 4].map((col) => (
               <div key={col} className="space-y-3">
                 <div className="skeleton h-6 w-24" />
@@ -1012,7 +988,7 @@ export function ArtesPage() {
             onDragStart={handleDragStart}
             onDragEnd={handleDragEnd}
           >
-            <div className="kanban-grid grid grid-cols-4 gap-3">
+            <div className="kanban-board">
               {STATUSES.map((status) => (
                 <KanbanColumn
                   key={status}

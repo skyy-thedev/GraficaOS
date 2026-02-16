@@ -118,3 +118,55 @@ export interface UpdateArteRequest {
   prazo?: string | null;
   observacoes?: string | null;
 }
+
+// ===== Checklist Diário =====
+
+export interface ChecklistItemConfig {
+  id: string;
+  titulo: string;
+  descricao: string | null;
+  horarioLimite: string | null;
+  ordem: number;
+  ativo: boolean;
+}
+
+export interface ItemHoje extends ChecklistItemConfig {
+  feito: boolean;
+  feitoEm: string | null;
+  feitoPor: {
+    id: string;
+    name: string;
+    initials: string;
+    avatarColor: string;
+  } | null;
+  atrasado: boolean;
+}
+
+export interface RelatorioDia {
+  data: string;
+  totalItens: number;
+  itensConcluidos: number;
+  percentual: number;
+  itens: {
+    titulo: string;
+    feito: boolean;
+    feitoEm: string | null;
+    feitoPor: string | null;
+    horarioLimite: string | null;
+    noHorario: boolean;
+  }[];
+}
+
+export interface CreateChecklistItemRequest {
+  titulo: string;
+  descricao?: string;
+  horarioLimite?: string;
+  ordem?: number;
+}
+
+export interface UpdateChecklistItemRequest {
+  titulo?: string;
+  descricao?: string;
+  horarioLimite?: string;
+  ordem?: number;
+}
