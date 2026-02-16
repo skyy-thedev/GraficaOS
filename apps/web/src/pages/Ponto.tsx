@@ -198,8 +198,8 @@ export function PontoPage() {
                   key={i}
                   className="ponto-progress-dot"
                   style={{
-                    background: i < stepsCompleted ? TIMELINE_ITEMS[i].color : 'var(--bg4)',
-                    boxShadow: i < stepsCompleted ? `0 0 6px ${TIMELINE_ITEMS[i].color}` : 'none',
+                    background: i < stepsCompleted ? (TIMELINE_ITEMS[i]?.color ?? 'var(--bg4)') : 'var(--bg4)',
+                    boxShadow: i < stepsCompleted ? `0 0 6px ${TIMELINE_ITEMS[i]?.color ?? 'transparent'}` : 'none',
                   }}
                 />
               ))}
