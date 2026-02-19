@@ -15,6 +15,7 @@ import type {
   RelatorioDia,
   CreateChecklistItemRequest,
   UpdateChecklistItemRequest,
+  MetricasPonto,
 }from '@/types';
 
 // ===== Auth =====
@@ -63,6 +64,21 @@ export const pontosApi = {
 
   relatorio: (params: { userId?: string; startDate: string; endDate: string }) =>
     api.get<Ponto[]>('/pontos/relatorio', { params }).then((r) => r.data),
+
+  metricas: (params: { userId?: string; startDate: string; endDate: string }) =>
+    api.get<MetricasPonto>('/pontos/metricas', { params }).then((r) => r.data),
+
+  exportCSV: (params: { userId?: string; startDate: string; endDate: string }) =>
+    api.get('/pontos/export/csv', { params, responseType: 'blob' }).then((r) => r.data as Blob),
+
+  exportXLSX: (params: { userId?: string; startDate: string; endDate: string }) =>
+    api.get('/pontos/export/xlsx', { params, responseType: 'blob' }).then((r) => r.data as Blob),
+
+  exportPDF: (params: { userId?: string; startDate: string; endDate: string }) =>
+    api.get('/pontos/export/pdf', { params, responseType: 'blob' }).then((r) => r.data as Blob),
+
+  enviarEmail: (params: { userId?: string; startDate: string; endDate: string; destinatario: string }) =>
+    api.post<{ sent: boolean; message: string }>('/pontos/export/email', params).then((r) => r.data),
 };
 
 // ===== Artes =====

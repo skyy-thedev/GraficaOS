@@ -11,6 +11,16 @@ const envSchema = z.object({
   PORT: z.coerce.number().default(3333),
   FRONTEND_URL: z.string().default('http://localhost:5173'),
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
+
+  // Email (para exportação de relatórios)
+  SMTP_HOST: z.string().default(''),
+  SMTP_PORT: z.coerce.number().default(587),
+  SMTP_USER: z.string().default(''),
+  SMTP_PASS: z.string().default(''),
+  SMTP_FROM: z.string().default('GráficaOS <noreply@graficaos.com>'),
+
+  // Horário considerado "pontual" (HH:MM)
+  HORARIO_ENTRADA_PONTUAL: z.string().default('08:15'),
 });
 
 const parsed = envSchema.safeParse(process.env);

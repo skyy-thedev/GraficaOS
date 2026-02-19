@@ -1,9 +1,12 @@
 import { Topbar } from '@/components/layout/Topbar';
-import { usePontoHoje, useBaterPonto, useRelatorio } from '@/hooks/usePonto';
-import { useState, useEffect } from 'react';
-import { format, startOfWeek, endOfWeek } from 'date-fns';
+import { usePontoHoje, useBaterPonto, useRelatorio, usePontoMetricas } from '@/hooks/usePonto';
+import { useState, useEffect, useMemo } from 'react';
+import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, getDaysInMonth } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { Clock, Calendar, Timer, LogIn, Coffee, RotateCcw, LogOut, CheckCircle } from 'lucide-react';
+import {
+  Clock, Calendar, Timer, LogIn, Coffee, RotateCcw, LogOut, CheckCircle,
+  Flame, BarChart3, Target,
+} from 'lucide-react';
 import type { Ponto } from '@/types';
 
 // ===== Helpers =====
@@ -71,6 +74,20 @@ function fmtTime(dateStr: string | null): string {
   return format(new Date(dateStr), 'HH:mm');
 }
 
+function getStreakBadge(streak: number): { emoji: string; label: string; color: string } | null {
+  if (streak >= 180) return { emoji: '👑', label: 'LENDÁRIO', color: 'var(--accent)' };
+  if (streak >= 90) return { emoji: '💎', label: 'DIAMANTE', color: 'var(--blue)' };
+  if (streak >= 30) return { emoji: '🏆', label: '1 MÊS', color: 'var(--yellow)' };
+  if (streak >= 7) return { emoji: '🔥', label: '1 SEMANA', color: 'var(--orange)' };
+  return null;
+}
+
+function getPontualidadeBadge(pct: number): { label: string; color: string; dimColor: string } {
+  if (pct >= 90) return { label: 'Excelente', color: 'var(--green)', dimColor: 'var(--green-dim)' };
+  if (pct >= 75) return { label: 'Bom', color: 'var(--yellow)', dimColor: 'var(--yellow-dim)' };
+  return { label: 'Atenção', color: 'var(--red)', dimColor: 'var(--red-dim)' };
+}
+
 const TIMELINE_ITEMS = [
   { key: 'entrada' as const, label: 'Entrada', icon: LogIn, color: 'var(--green)', dimColor: 'var(--green-dim)' },
   { key: 'almoco' as const, label: 'Saída Almoço', icon: Coffee, color: 'var(--yellow)', dimColor: 'var(--yellow-dim)' },
@@ -90,11 +107,24 @@ export function PontoPage() {
   }, []);
 
   const hoje = new Date();
+  const monthStart = format(startOfMonth(hoje), 'yyyy-MM-dd');
+  const monthEnd = format(endOfMonth(hoje), 'yyyy-MM-dd');
   const weekStart = format(startOfWeek(hoje, { weekStartsOn: 1 }), 'yyyy-MM-dd');
   const weekEnd = format(endOfWeek(hoje, { weekStartsOn: 1 }), 'yyyy-MM-dd');
+
   const { data: historicoSemanal, isLoading: loadingHistorico } = useRelatorio({
     startDate: weekStart,
     endDate: weekEnd,
+  });
+
+  const { data: historicoMensal } = useRelatorio({
+    startDate: monthStart,
+    endDate: monthEnd,
+  });
+
+  const { data: metricas } = usePontoMetricas({
+    startDate: monthStart,
+    endDate: monthEnd,
   });
 
   const btnState = getButtonState(pontoHoje);
@@ -107,10 +137,83 @@ export function PontoPage() {
   const minutes = format(currentTime, 'mm');
   const seconds = format(currentTime, 'ss');
 
-  // Contagem de etapas completadas
   const stepsCompleted = pontoHoje
     ? [pontoHoje.entrada, pontoHoje.almoco, pontoHoje.retorno, pontoHoje.saida].filter(Boolean).length
     : 0;
+
+  // Calendário mensal
+  const calendarDays = useMemo(() => {
+    const daysInMonth = getDaysInMonth(hoje);
+    const firstDay = new Date(hoje.getFullYear(), hoje.getMonth(), 1).getDay();
+    const adjustedFirst = firstDay === 0 ? 6 : firstDay - 1;
+
+    const pontosMap = new Map<number, Ponto>();
+    if (historicoMensal) {
+      for (const p of historicoMensal) {
+        const d = new Date(p.date).getDate();
+        pontosMap.set(d, p);
+      }
+    }
+
+    const days: Array<{
+      day: number;
+      status: 'complete' | 'late' | 'absent' | 'auto' | 'weekend' | 'future' | null;
+      tooltip: string;
+    }> = [];
+
+    for (let i = 0; i < adjustedFirst; i++) {
+      days.push({ day: 0, status: null, tooltip: '' });
+    }
+
+    for (let d = 1; d <= daysInMonth; d++) {
+      const date = new Date(hoje.getFullYear(), hoje.getMonth(), d);
+      const dayOfWeek = date.getDay();
+      const isFuture = date > hoje;
+      const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+
+      if (isFuture) {
+        days.push({ day: d, status: 'future', tooltip: '' });
+        continue;
+      }
+      if (isWeekend) {
+        days.push({ day: d, status: 'weekend', tooltip: 'Fim de semana' });
+        continue;
+      }
+
+      const ponto = pontosMap.get(d);
+      if (!ponto || !ponto.entrada) {
+        days.push({ day: d, status: 'absent', tooltip: 'Falta' });
+      } else if (ponto.encerramentoAutomatico) {
+        const tt = `${fmtTime(ponto.entrada)} → 22:00 (auto)`;
+        days.push({ day: d, status: 'auto', tooltip: tt });
+      } else if (ponto.saida) {
+        const horas = calcularHoras(ponto) ?? '';
+        const tt = `${fmtTime(ponto.entrada)} → ${fmtTime(ponto.saida)} | ${horas}`;
+        days.push({ day: d, status: 'complete', tooltip: tt });
+      } else {
+        const tt = `${fmtTime(ponto.entrada)} → em curso`;
+        days.push({ day: d, status: 'late', tooltip: tt });
+      }
+    }
+
+    return days;
+  }, [hoje, historicoMensal]);
+
+  // Horas esperadas (22 dias úteis × 8h = 176h)
+  const horasEsperadas = 176;
+  const horasMinutosMatch = metricas?.totalHorasTrabalhadas.match(/(\d+)h(\d+)m/);
+  const horasTrabalhadasNum = horasMinutosMatch ? parseInt(horasMinutosMatch[1]!) + parseInt(horasMinutosMatch[2]!) / 60 : 0;
+  const horasProgressPct = horasEsperadas > 0 ? Math.min(100, Math.round((horasTrabalhadasNum / horasEsperadas) * 100)) : 0;
+
+  function getProgressColor(pct: number): string {
+    if (pct > 100) return 'linear-gradient(90deg, var(--blue), #2196e0)';
+    if (pct >= 80) return 'linear-gradient(90deg, var(--green), #1ab87e)';
+    if (pct >= 50) return 'linear-gradient(90deg, var(--yellow), #e0a800)';
+    return 'linear-gradient(90deg, var(--red), #c03030)';
+  }
+
+  const streakBadge = metricas ? getStreakBadge(metricas.streakAtual) : null;
+  const pontualidadeBadge = metricas ? getPontualidadeBadge(metricas.percentualPontualidade) : null;
 
   return (
     <>
@@ -121,9 +224,74 @@ export function PontoPage() {
 
       <div className="page-wrapper ponto-page">
 
+        {/* ===== SEÇÃO 0: Métricas Motivacionais ===== */}
+        {metricas && (
+          <section className="ponto-metrics-row">
+            {/* Streak */}
+            <div className="ponto-metric-card ponto-metric-streak">
+              <div className="ponto-metric-icon-wrap" style={{ background: 'var(--orange-dim)', color: 'var(--orange)' }}>
+                <Flame size={18} />
+              </div>
+              <div className="ponto-metric-main">
+                <span className="ponto-metric-number" style={{ color: 'var(--orange)' }}>
+                  {metricas.streakAtual}
+                </span>
+                <span className="ponto-metric-label">dias consecutivos</span>
+              </div>
+              {streakBadge && (
+                <span className="ponto-streak-badge" style={{ color: streakBadge.color }}>
+                  {streakBadge.emoji} {streakBadge.label}
+                </span>
+              )}
+            </div>
+
+            {/* Horas no mês */}
+            <div className="ponto-metric-card">
+              <div className="ponto-metric-icon-wrap" style={{ background: 'var(--accent-glow)', color: 'var(--accent)' }}>
+                <BarChart3 size={18} />
+              </div>
+              <div className="ponto-metric-main">
+                <span className="ponto-metric-number" style={{ color: 'var(--accent)' }}>
+                  {metricas.totalHorasTrabalhadas}
+                </span>
+                <span className="ponto-metric-label">horas no mês</span>
+              </div>
+              <div className="ponto-metric-progress">
+                <div className="ponto-metric-progress-bar">
+                  <div
+                    className="ponto-metric-progress-fill"
+                    style={{ width: `${horasProgressPct}%`, background: getProgressColor(horasProgressPct) }}
+                  />
+                </div>
+                <span className="ponto-metric-progress-text">{horasProgressPct}% de ~{horasEsperadas}h</span>
+              </div>
+            </div>
+
+            {/* Pontualidade */}
+            <div className="ponto-metric-card">
+              <div className="ponto-metric-icon-wrap" style={{ background: pontualidadeBadge?.dimColor ?? 'var(--green-dim)', color: pontualidadeBadge?.color ?? 'var(--green)' }}>
+                <Target size={18} />
+              </div>
+              <div className="ponto-metric-main">
+                <span className="ponto-metric-number" style={{ color: pontualidadeBadge?.color ?? 'var(--green)' }}>
+                  {metricas.percentualPontualidade}%
+                </span>
+                <span className="ponto-metric-label">pontualidade</span>
+              </div>
+              {pontualidadeBadge && (
+                <span
+                  className="ponto-pontualidade-badge"
+                  style={{ background: pontualidadeBadge.dimColor, color: pontualidadeBadge.color }}
+                >
+                  {pontualidadeBadge.label}
+                </span>
+              )}
+            </div>
+          </section>
+        )}
+
         {/* ===== SEÇÃO 1: Relógio + Ação ===== */}
         <section className="ponto-clock-section">
-          {/* Relógio */}
           <div className="ponto-clock-display">
             <span className="ponto-digit">{hours}</span>
             <span className="ponto-separator">:</span>
@@ -132,13 +300,11 @@ export function PontoPage() {
             <span className="ponto-digit-sec">{seconds}</span>
           </div>
 
-          {/* Data */}
           <div className="ponto-date-row">
             <Calendar size={14} />
             <span>{format(currentTime, "EEEE, dd 'de' MMMM 'de' yyyy", { locale: ptBR })}</span>
           </div>
 
-          {/* Status */}
           {workingStatus && (
             <div className="ponto-status-pill">
               <span
@@ -152,7 +318,6 @@ export function PontoPage() {
             </div>
           )}
 
-          {/* Botão */}
           {!isLoading && (
             <button
               onClick={() => baterPonto.mutate()}
@@ -226,7 +391,6 @@ export function PontoPage() {
 
                 return (
                   <div key={item.key} className={`ponto-timeline-item${idx < 3 ? ' ponto-timeline-divider' : ''}`}>
-                    {/* Ícone */}
                     <div
                       className="ponto-timeline-icon"
                       style={{
@@ -237,11 +401,7 @@ export function PontoPage() {
                     >
                       <Icon size={14} />
                     </div>
-
-                    {/* Label */}
                     <span className="ponto-timeline-label">{item.label}</span>
-
-                    {/* Hora */}
                     <span
                       className="ponto-timeline-time"
                       style={{ color: filled ? item.color : 'var(--text3)' }}
@@ -255,7 +415,45 @@ export function PontoPage() {
           </div>
         </section>
 
-        {/* ===== SEÇÃO 4: Histórico Semanal ===== */}
+        {/* ===== SEÇÃO 4: Calendário Mensal ===== */}
+        <section className="ponto-card">
+          <div className="ponto-card-header">
+            <Calendar size={16} />
+            <span>{format(hoje, "MMMM yyyy", { locale: ptBR })}</span>
+          </div>
+          <div className="ponto-calendar">
+            <div className="ponto-cal-header">
+              {['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'].map((d) => (
+                <span key={d} className="ponto-cal-day-label">{d}</span>
+              ))}
+            </div>
+            <div className="ponto-cal-grid">
+              {calendarDays.map((cell, i) => {
+                if (cell.day === 0) return <span key={i} className="ponto-cal-empty" />;
+
+                const isToday = cell.day === hoje.getDate();
+
+                return (
+                  <span
+                    key={i}
+                    className={`ponto-cal-cell ponto-cal-${cell.status}${isToday ? ' ponto-cal-today' : ''}`}
+                    title={cell.tooltip}
+                  >
+                    {cell.day}
+                  </span>
+                );
+              })}
+            </div>
+            <div className="ponto-cal-legend">
+              <span className="ponto-cal-legend-item"><span className="ponto-cal-dot" style={{ background: 'var(--green)' }} /> Completo</span>
+              <span className="ponto-cal-legend-item"><span className="ponto-cal-dot" style={{ background: 'var(--yellow)' }} /> Parcial</span>
+              <span className="ponto-cal-legend-item"><span className="ponto-cal-dot" style={{ background: 'var(--red)' }} /> Falta</span>
+              <span className="ponto-cal-legend-item"><span className="ponto-cal-dot" style={{ background: 'var(--accent)' }} /> Enc. Auto</span>
+            </div>
+          </div>
+        </section>
+
+        {/* ===== SEÇÃO 5: Histórico Semanal ===== */}
         <section className="ponto-card">
           <div className="ponto-card-header">
             <Calendar size={16} />
@@ -286,20 +484,15 @@ export function PontoPage() {
 
                 return (
                   <div key={p.id} className={`ponto-hist-row${isToday ? ' ponto-hist-today' : ''}`}>
-                    {/* Dia */}
                     <div className="ponto-hist-day">
                       {isToday && <span className="ponto-today-dot" />}
                       <span className="ponto-hist-day-text">{dayLabel}</span>
                     </div>
-
-                    {/* Horários */}
                     <div className="ponto-hist-times">
                       <span style={{ color: p.entrada ? 'var(--green)' : 'var(--text3)' }}>{fmtTime(p.entrada)}</span>
                       <span className="ponto-hist-sep">→</span>
                       <span style={{ color: p.saida ? 'var(--red)' : 'var(--text3)' }}>{fmtTime(p.saida)}</span>
                     </div>
-
-                    {/* Horas + Status */}
                     <div className="ponto-hist-meta">
                       <span className="ponto-hist-hours">{horas ?? '—'}</span>
                       <span

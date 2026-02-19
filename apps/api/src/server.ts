@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
+import cron from 'node-cron';
 import { env } from './config/env';
 import { errorHandler } from './middlewares/errorHandler';
 import { authRoutes } from './routes/auth.routes';
@@ -8,6 +9,7 @@ import { userRoutes } from './routes/user.routes';
 import { pontoRoutes } from './routes/ponto.routes';
 import { arteRoutes } from './routes/arte.routes';
 import { checklistRoutes } from './routes/checklist.routes';
+import { fecharPontosAbertos } from './jobs/fecharPontos';
 
 const app = express();
 
@@ -42,6 +44,16 @@ app.use(errorHandler);
 
 app.listen(env.PORT, () => {
   console.log(`🚀 GráficaOS API rodando na porta ${env.PORT}`);
+});
+
+// Job de encerramento automático — roda todo dia às 22:00
+cron.schedule('0 22 * * *', async () => {
+  console.log('🕙 Iniciando job de encerramento automático de pontos...');
+  try {
+    await fecharPontosAbertos();
+  } catch (err) {
+    console.error('❌ Erro no job de encerramento:', err);
+  }
 });
 
 export { app };

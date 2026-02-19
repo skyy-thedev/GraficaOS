@@ -26,9 +26,27 @@ export interface Ponto {
   almoco: string | null;
   retorno: string | null;
   saida: string | null;
+  encerramentoAutomatico?: boolean;
   horasTrabalhadas?: string | null;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface MetricasPonto {
+  periodo: { inicio: string; fim: string };
+  totalDias: number;
+  diasTrabalhados: number;
+  diasFalta: number;
+  percentualPresenca: number;
+  totalHorasTrabalhadas: string;
+  mediaHorasPorDia: string;
+  diasPontuais: number;
+  percentualPontualidade: number;
+  streakAtual: number;
+  maiorStreak: number;
+  encerramentosAutomaticos: number;
+  horasPorDia: { data: string; horas: number }[];
+  frequenciaSemanal: { semana: string; presencas: number; total: number }[];
 }
 
 export interface Arquivo {

@@ -38,6 +38,7 @@ export function useBaterPonto() {
       queryClient.invalidateQueries({ queryKey: ['ponto-hoje'] });
       queryClient.invalidateQueries({ queryKey: ['pontos'] });
       queryClient.invalidateQueries({ queryKey: ['relatorio'] });
+      queryClient.invalidateQueries({ queryKey: ['ponto-metricas'] });
       addToast({ icon: '⏱️', title: 'Ponto registrado!', message: detectBatidaLabel(ponto) });
     },
     onError: () => {
@@ -52,4 +53,64 @@ export function useRelatorio(params: { userId?: string; startDate: string; endDa
     queryFn: () => pontosApi.relatorio(params),
     enabled: !!params.startDate && !!params.endDate,
   });
+}
+
+export function usePontoMetricas(params: { userId?: string; startDate: string; endDate: string }) {
+  return useQuery({
+    queryKey: ['ponto-metricas', params],
+    queryFn: () => pontosApi.metricas(params),
+    enabled: !!params.startDate && !!params.endDate,
+    staleTime: 60_000,
+  });
+}
+
+/** Helpers de exportação */
+function downloadBlob(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+export function useExportarPonto() {
+  const addToast = useToastStore.getState().addToast;
+
+  const exportCSV = useMutation({
+    mutationFn: pontosApi.exportCSV,
+    onSuccess: (blob) => {
+      downloadBlob(blob, `pontos-${format(new Date(), 'yyyy-MM-dd')}.csv`);
+      addToast({ icon: '⬇️', title: 'Download iniciado!', message: 'pontos.csv' });
+    },
+    onError: () => addToast({ icon: '❌', title: 'Erro ao exportar CSV' }),
+  });
+
+  const exportXLSX = useMutation({
+    mutationFn: pontosApi.exportXLSX,
+    onSuccess: (blob) => {
+      downloadBlob(blob, `pontos-${format(new Date(), 'yyyy-MM-dd')}.xlsx`);
+      addToast({ icon: '⬇️', title: 'Download iniciado!', message: 'pontos.xlsx' });
+    },
+    onError: () => addToast({ icon: '❌', title: 'Erro ao exportar Excel' }),
+  });
+
+  const exportPDF = useMutation({
+    mutationFn: pontosApi.exportPDF,
+    onSuccess: (blob) => {
+      downloadBlob(blob, `pontos-${format(new Date(), 'yyyy-MM-dd')}.pdf`);
+      addToast({ icon: '⬇️', title: 'Download iniciado!', message: 'pontos.pdf' });
+    },
+    onError: () => addToast({ icon: '❌', title: 'Erro ao exportar PDF' }),
+  });
+
+  const enviarEmail = useMutation({
+    mutationFn: pontosApi.enviarEmail,
+    onSuccess: (data) => {
+      addToast({ icon: '📧', title: 'Email enviado!', message: data.message });
+    },
+    onError: () => addToast({ icon: '❌', title: 'Erro ao enviar email' }),
+  });
+
+  return { exportCSV, exportXLSX, exportPDF, enviarEmail };
 }

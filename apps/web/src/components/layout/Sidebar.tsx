@@ -8,6 +8,7 @@ import {
   LogOut,
   ChevronRight,
   CheckSquare,
+  BarChart3,
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { useQueryClient } from '@tanstack/react-query';
@@ -36,7 +37,10 @@ export function Sidebar() {
       items: [
         ...(!isAdmin ? [{ to: '/ponto', icon: Clock, label: 'Registro de Ponto', badge: 0, badgeType: 'normal' as const }] : []),
         { to: '/checklist', icon: CheckSquare, label: 'Checklist Diário', badge: checklistPendentes, badgeType: (checklistAtrasados ? 'warning' : 'normal') as 'warning' | 'normal' },
-        ...(isAdmin ? [{ to: '/gestao-pontos', icon: ClipboardList, label: 'Gestão de Pontos', badge: 0, badgeType: 'normal' as const }] : []),
+        ...(isAdmin ? [
+          { to: '/gestao-pontos', icon: ClipboardList, label: 'Gestão de Pontos', badge: 0, badgeType: 'normal' as const },
+          { to: '/ponto/analytics', icon: BarChart3, label: 'Analytics de Ponto', badge: 0, badgeType: 'normal' as const },
+        ] : []),
         { to: '/artes', icon: Palette, label: 'Artes / Gráfica', badge: artesAtivasCount, badgeType: 'normal' as const },
       ],
     },

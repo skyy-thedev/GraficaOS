@@ -36,6 +36,7 @@ model Ponto {
   almoco    DateTime?
   retorno   DateTime?
   saida     DateTime?
+  encerramentoAutomatico Boolean @default(false)
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
 

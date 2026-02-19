@@ -7,6 +7,7 @@ import {
   ClipboardList,
   LogOut,
   CheckSquare,
+  BarChart3,
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { useState } from 'react';
@@ -27,6 +28,7 @@ export function MobileNav() {
   // Itens extras (admin)
   const extraItems = [
     ...(isAdmin ? [{ to: '/gestao-pontos', icon: ClipboardList, label: 'Gestão' }] : []),
+    ...(isAdmin ? [{ to: '/ponto/analytics', icon: BarChart3, label: 'Analytics' }] : []),
     ...(isAdmin ? [{ to: '/funcionarios', icon: Users, label: 'Equipe' }] : []),
   ];
 

@@ -3167,3 +3167,435 @@ input[type="date"] { color-scheme: dark; }
   }
 }
 
+
+/* ═══════════════════════════════════════════════════════
+   PONTO — Motivational Metrics
+   ═══════════════════════════════════════════════════════ */
+
+.ponto-metrics-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  margin-bottom: 8px;
+}
+
+.ponto-metric-card {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  transition: border-color 0.2s;
+}
+
+.ponto-metric-card:hover {
+  border-color: var(--border2);
+}
+
+.ponto-metric-streak {
+  background: linear-gradient(135deg, var(--orange-dim), transparent);
+  position: relative;
+  overflow: hidden;
+}
+
+.ponto-metric-icon-wrap {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.ponto-metric-main {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.ponto-metric-number {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 36px;
+  font-weight: 700;
+  line-height: 1;
+  text-shadow: 0 0 20px rgba(255, 157, 77, 0.2);
+}
+
+.ponto-metric-label {
+  font-size: 12px;
+  color: var(--text3);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.ponto-streak-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  font-family: 'JetBrains Mono', monospace;
+  letter-spacing: 0.3px;
+  margin-top: 4px;
+  padding: 3px 8px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 6px;
+  width: fit-content;
+}
+
+.ponto-metric-progress {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.ponto-metric-progress-bar {
+  width: 100%;
+  height: 8px;
+  background: var(--bg3);
+  border-radius: 99px;
+  overflow: hidden;
+}
+
+.ponto-metric-progress-fill {
+  height: 100%;
+  border-radius: 99px;
+  transition: width 0.6s ease;
+}
+
+.ponto-metric-progress-text {
+  font-size: 11px;
+  color: var(--text3);
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.ponto-pontualidade-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 700;
+  font-family: 'JetBrains Mono', monospace;
+  padding: 4px 10px;
+  border-radius: 8px;
+  margin-top: 4px;
+  width: fit-content;
+}
+
+
+/* ═══════════════════════════════════════════════════════
+   PONTO — Calendar Grid
+   ═══════════════════════════════════════════════════════ */
+
+.ponto-calendar {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.ponto-cal-header {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+  text-align: center;
+}
+
+.ponto-cal-day-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text3);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-family: 'JetBrains Mono', monospace;
+  padding: 4px 0;
+}
+
+.ponto-cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+}
+
+.ponto-cal-empty {
+  aspect-ratio: 1;
+}
+
+.ponto-cal-cell {
+  aspect-ratio: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 600;
+  font-family: 'JetBrains Mono', monospace;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  transition: all 0.15s;
+  cursor: default;
+  position: relative;
+}
+
+.ponto-cal-complete {
+  background: rgba(34, 211, 160, 0.15);
+  color: var(--green);
+  border-color: rgba(34, 211, 160, 0.25);
+}
+
+.ponto-cal-late {
+  background: rgba(255, 214, 77, 0.15);
+  color: var(--yellow);
+  border-color: rgba(255, 214, 77, 0.25);
+}
+
+.ponto-cal-absent {
+  background: rgba(255, 92, 92, 0.15);
+  color: var(--red);
+  border-color: rgba(255, 92, 92, 0.25);
+}
+
+.ponto-cal-auto {
+  background: var(--accent-glow);
+  color: var(--accent);
+  border-color: rgba(108, 99, 255, 0.3);
+}
+
+.ponto-cal-weekend {
+  background: var(--bg3);
+  color: var(--text4);
+  opacity: 0.5;
+}
+
+.ponto-cal-future {
+  background: transparent;
+  color: var(--text4);
+  opacity: 0.3;
+}
+
+.ponto-cal-today {
+  box-shadow: 0 0 0 2px var(--accent), 0 0 12px rgba(108, 99, 255, 0.3);
+  border-color: var(--accent) !important;
+}
+
+.ponto-cal-legend {
+  display: flex;
+  gap: 16px;
+  justify-content: center;
+  flex-wrap: wrap;
+  padding-top: 8px;
+}
+
+.ponto-cal-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--text3);
+}
+
+.ponto-cal-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+
+/* ═══════════════════════════════════════════════════════
+   PONTO ANALYTICS — Admin Dashboard
+   ═══════════════════════════════════════════════════════ */
+
+.pa-page {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.pa-filters {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.pa-filter-presets {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.pa-filter-btn {
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  color: var(--text2);
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-family: 'Syne', sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.pa-filter-btn:hover:not(.pa-filter-active) {
+  border-color: var(--border2);
+  color: var(--text);
+}
+
+.pa-filter-active {
+  background: var(--accent-glow);
+  border-color: var(--accent);
+  color: var(--accent2);
+}
+
+.pa-filter-extras {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.pa-filter-range {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.pa-filter-sep {
+  font-size: 13px;
+  color: var(--text3);
+  font-weight: 500;
+}
+
+.pa-charts-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 20px;
+}
+
+.pa-chart-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text2);
+}
+
+.pa-chart-skeleton {
+  height: 280px;
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+  padding: 20px;
+}
+
+.pa-chart-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  height: 200px;
+  color: var(--text3);
+  font-size: 13px;
+}
+
+.pa-table-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.pa-export-btns {
+  display: flex;
+  gap: 4px;
+}
+
+.pa-enc-auto-row {
+  background: var(--accent-glow) !important;
+}
+
+.pa-enc-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  font-family: 'JetBrains Mono', monospace;
+  padding: 3px 8px;
+  border-radius: 6px;
+  background: rgba(108, 99, 255, 0.15);
+  color: var(--accent);
+  border: 1px solid rgba(108, 99, 255, 0.3);
+  white-space: nowrap;
+}
+
+
+/* ═══════════════════════════════════════════════════════
+   PONTO ANALYTICS — Responsive
+   ═══════════════════════════════════════════════════════ */
+
+@media (max-width: 900px) {
+  .pa-charts-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 768px) {
+  .ponto-metrics-row {
+    grid-template-columns: 1fr;
+  }
+
+  .ponto-metric-number {
+    font-size: 28px;
+  }
+
+  .pa-filter-presets {
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+
+  .pa-filter-presets::-webkit-scrollbar {
+    display: none;
+  }
+
+  .pa-filter-btn {
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  .pa-filter-extras {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .pa-filter-range {
+    flex-direction: column;
+  }
+
+  .pa-table-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .pa-export-btns {
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+
+  .ponto-cal-cell {
+    font-size: 10px;
+    border-radius: 6px;
+  }
+
+  .ponto-cal-legend {
+    gap: 10px;
+  }
+}
+
