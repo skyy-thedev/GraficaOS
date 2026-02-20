@@ -52,16 +52,6 @@ npm run dev:api    # API em http://localhost:3333
 npm run dev:web    # Frontend em http://localhost:5173
 ```
 
-## 🔑 Credenciais de Acesso (Desenvolvimento)
-
-| Perfil | Email | Senha |
-|--------|-------|-------|
-| Admin | admin@graficaos.com | admin123 |
-| Ana Silva | ana@graficaos.com | 123456 |
-| Carlos Mota | carlos@graficaos.com | 123456 |
-| Júlia Ramos | julia@graficaos.com | 123456 |
-| Marcos Lima | marcos@graficaos.com | 123456 |
-
 ## 📁 Estrutura do Projeto
 
 ```
