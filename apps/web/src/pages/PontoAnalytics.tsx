@@ -27,6 +27,8 @@ import {
   TrendingUp,
 } from 'lucide-react';
 import { useState, useMemo } from 'react';
+import { Navigate } from 'react-router-dom';
+import { useAuth } from '@/hooks/useAuth';
 import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, subMonths } from 'date-fns';
 import {
   BarChart,
@@ -102,6 +104,7 @@ function getDateRange(preset: PeriodoPreset): { start: string; end: string } {
 }
 
 export function PontoAnalyticsPage() {
+  const { isAdmin } = useAuth();
   const { data: users } = useUsers();
   const activeUsers = users?.filter((u) => u.active) ?? [];
 
@@ -144,6 +147,9 @@ export function PontoAnalyticsPage() {
       .map((v) => ({ nome: v.nome, horas: Math.round((v.minutos / 60) * 10) / 10 }))
       .sort((a, b) => b.horas - a.horas);
   }, [pontos]);
+
+  // Guard: redireciona se não for admin (depois de todos os hooks)
+  if (!isAdmin) return <Navigate to="/" replace />;
 
   const handleExportEmail = () => {
     if (!emailDest) return;

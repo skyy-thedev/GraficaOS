@@ -1,12 +1,16 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { usersApi } from '@/services/endpoints';
 import { useToastStore } from '@/stores/toastStore';
+import { useAuth } from '@/hooks/useAuth';
 import type { CreateUserRequest, UpdateUserRequest, User } from '@/types';
 
 export function useUsers() {
+  const { isAdmin } = useAuth();
+
   return useQuery({
     queryKey: ['users'],
     queryFn: usersApi.list,
+    enabled: isAdmin, // Só busca se for admin (rota é adminOnly)
   });
 }
 
