@@ -647,11 +647,19 @@ export async function enviarRelatorioPorEmail(params: {
   destinatario: string;
 }): Promise<{ sent: boolean; message: string }> {
   if (!env.SMTP_HOST || !env.SMTP_USER) {
-    throw Object.assign(new Error('Configuração de email (SMTP) não definida no servidor'), { statusCode: 400 });
+    throw Object.assign(
+      new Error(
+        'Email não configurado. Configure as variáveis SMTP_HOST, SMTP_USER e SMTP_PASS no servidor. ' +
+        'Para Gmail: SMTP_HOST=smtp.gmail.com, SMTP_PORT=587, SMTP_USER=seu@gmail.com, SMTP_PASS=sua-app-password'
+      ),
+      { statusCode: 400 }
+    );
   }
 
   const pdfBuffer = await exportPDF(params);
 
+  // Configurar transporter (suporta Gmail, Outlook, etc.)
+  const isGmail = env.SMTP_HOST.includes('gmail');
   const transporter = nodemailer.createTransport({
     host: env.SMTP_HOST,
     port: env.SMTP_PORT,
@@ -660,30 +668,40 @@ export async function enviarRelatorioPorEmail(params: {
       user: env.SMTP_USER,
       pass: env.SMTP_PASS,
     },
+    ...(isGmail ? { tls: { rejectUnauthorized: false } } : {}),
   });
 
   const filename = `relatorio-pontos-${params.startDate}-a-${params.endDate}.pdf`;
 
-  await transporter.sendMail({
-    from: env.SMTP_FROM,
-    to: params.destinatario,
-    subject: `GráficaOS — Relatório de Pontos (${params.startDate} a ${params.endDate})`,
-    html: `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-        <h2 style="color: #6c63ff;">GráficaOS</h2>
-        <p>Segue em anexo o relatório de pontos do período <strong>${params.startDate}</strong> a <strong>${params.endDate}</strong>.</p>
-        <hr style="border: 1px solid #eee;">
-        <p style="color: #999; font-size: 12px;">Este email foi gerado automaticamente pelo sistema GráficaOS.</p>
-      </div>
-    `,
-    attachments: [
-      {
-        filename,
-        content: pdfBuffer,
-        contentType: 'application/pdf',
-      },
-    ],
-  });
+  try {
+    await transporter.sendMail({
+      from: env.SMTP_FROM || `GráficaOS <${env.SMTP_USER}>`,
+      to: params.destinatario,
+      subject: `GráficaOS — Relatório de Pontos (${params.startDate} a ${params.endDate})`,
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+          <h2 style="color: #6c63ff;">GráficaOS</h2>
+          <p>Segue em anexo o relatório de pontos do período <strong>${params.startDate}</strong> a <strong>${params.endDate}</strong>.</p>
+          <hr style="border: 1px solid #eee;">
+          <p style="color: #999; font-size: 12px;">Este email foi gerado automaticamente pelo sistema GráficaOS.</p>
+        </div>
+      `,
+      attachments: [
+        {
+          filename,
+          content: pdfBuffer,
+          contentType: 'application/pdf',
+        },
+      ],
+    });
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : 'Erro desconhecido';
+    console.error('❌ Erro ao enviar email:', msg);
+    throw Object.assign(
+      new Error(`Falha ao enviar email: ${msg}`),
+      { statusCode: 500 }
+    );
+  }
 
   return { sent: true, message: `Relatório enviado para ${params.destinatario}` };
 }

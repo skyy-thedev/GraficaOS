@@ -109,7 +109,11 @@ export function useExportarPonto() {
     onSuccess: (data) => {
       addToast({ icon: '📧', title: 'Email enviado!', message: data.message });
     },
-    onError: () => addToast({ icon: '❌', title: 'Erro ao enviar email' }),
+    onError: (err: unknown) => {
+      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
+        ?? 'Erro ao enviar email. Verifique se o SMTP está configurado.';
+      addToast({ icon: '❌', title: 'Erro ao enviar email', message: msg });
+    },
   });
 
   return { exportCSV, exportXLSX, exportPDF, enviarEmail };
