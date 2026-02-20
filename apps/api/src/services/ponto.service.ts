@@ -3,6 +3,7 @@ import { env } from '../config/env';
 import ExcelJS from 'exceljs';
 import PDFDocument from 'pdfkit';
 import nodemailer from 'nodemailer';
+import { Resend } from 'resend';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
@@ -646,54 +647,74 @@ export async function enviarRelatorioPorEmail(params: {
   endDate: string;
   destinatario: string;
 }): Promise<{ sent: boolean; message: string }> {
-  if (!env.SMTP_HOST || !env.SMTP_USER) {
+  const hasResend = !!env.RESEND_API_KEY;
+  const hasSMTP = !!env.SMTP_HOST && !!env.SMTP_USER;
+
+  if (!hasResend && !hasSMTP) {
     throw Object.assign(
       new Error(
-        'Email não configurado. Configure as variáveis SMTP_HOST, SMTP_USER e SMTP_PASS no servidor. ' +
-        'Para Gmail: SMTP_HOST=smtp.gmail.com, SMTP_PORT=587, SMTP_USER=seu@gmail.com, SMTP_PASS=sua-app-password'
+        'Email não configurado. Configure RESEND_API_KEY (recomendado) ou SMTP_HOST + SMTP_USER + SMTP_PASS no servidor.'
       ),
       { statusCode: 400 }
     );
   }
 
   const pdfBuffer = await exportPDF(params);
-
-  // Configurar transporter (suporta Gmail, Outlook, etc.)
-  const isGmail = env.SMTP_HOST.includes('gmail');
-  const transporter = nodemailer.createTransport({
-    host: env.SMTP_HOST,
-    port: env.SMTP_PORT,
-    secure: env.SMTP_PORT === 465,
-    auth: {
-      user: env.SMTP_USER,
-      pass: env.SMTP_PASS,
-    },
-    ...(isGmail ? { tls: { rejectUnauthorized: false } } : {}),
-  });
-
   const filename = `relatorio-pontos-${params.startDate}-a-${params.endDate}.pdf`;
+  const subject = `GráficaOS — Relatório de Pontos (${params.startDate} a ${params.endDate})`;
+  const html = `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+      <h2 style="color: #6c63ff;">GráficaOS</h2>
+      <p>Segue em anexo o relatório de pontos do período <strong>${params.startDate}</strong> a <strong>${params.endDate}</strong>.</p>
+      <hr style="border: 1px solid #eee;">
+      <p style="color: #999; font-size: 12px;">Este email foi gerado automaticamente pelo sistema GráficaOS.</p>
+    </div>
+  `;
 
   try {
-    await transporter.sendMail({
-      from: env.SMTP_FROM || `GráficaOS <${env.SMTP_USER}>`,
-      to: params.destinatario,
-      subject: `GráficaOS — Relatório de Pontos (${params.startDate} a ${params.endDate})`,
-      html: `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-          <h2 style="color: #6c63ff;">GráficaOS</h2>
-          <p>Segue em anexo o relatório de pontos do período <strong>${params.startDate}</strong> a <strong>${params.endDate}</strong>.</p>
-          <hr style="border: 1px solid #eee;">
-          <p style="color: #999; font-size: 12px;">Este email foi gerado automaticamente pelo sistema GráficaOS.</p>
-        </div>
-      `,
-      attachments: [
-        {
-          filename,
-          content: pdfBuffer,
-          contentType: 'application/pdf',
+    // Prioridade: Resend (HTTP API — funciona em qualquer host)
+    if (hasResend) {
+      const resend = new Resend(env.RESEND_API_KEY);
+      await resend.emails.send({
+        from: env.EMAIL_FROM || 'GráficaOS <onboarding@resend.dev>',
+        to: [params.destinatario],
+        subject,
+        html,
+        attachments: [
+          {
+            filename,
+            content: pdfBuffer.toString('base64'),
+          },
+        ],
+      });
+    } else {
+      // Fallback: SMTP (pode ter problemas em hosts como Render free)
+      const isGmail = env.SMTP_HOST.includes('gmail');
+      const transporter = nodemailer.createTransport({
+        host: env.SMTP_HOST,
+        port: env.SMTP_PORT,
+        secure: env.SMTP_PORT === 465,
+        auth: {
+          user: env.SMTP_USER,
+          pass: env.SMTP_PASS,
         },
-      ],
-    });
+        ...(isGmail ? { tls: { rejectUnauthorized: false } } : {}),
+      });
+
+      await transporter.sendMail({
+        from: env.SMTP_FROM || `GráficaOS <${env.SMTP_USER}>`,
+        to: params.destinatario,
+        subject,
+        html,
+        attachments: [
+          {
+            filename,
+            content: pdfBuffer,
+            contentType: 'application/pdf',
+          },
+        ],
+      });
+    }
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : 'Erro desconhecido';
     console.error('❌ Erro ao enviar email:', msg);

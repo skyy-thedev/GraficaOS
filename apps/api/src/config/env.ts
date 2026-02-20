@@ -13,6 +13,11 @@ const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
 
   // Email (para exportação de relatórios)
+  // Resend (recomendado para Render/Vercel — funciona via HTTP)
+  RESEND_API_KEY: z.string().default(''),
+  EMAIL_FROM: z.string().default('GráficaOS <onboarding@resend.dev>'),
+
+  // SMTP (fallback — pode não funcionar em hosts que bloqueiam porta 587)
   SMTP_HOST: z.string().default(''),
   SMTP_PORT: z.coerce.number().default(587),
   SMTP_USER: z.string().default(''),
