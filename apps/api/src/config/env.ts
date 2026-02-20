@@ -19,8 +19,8 @@ const envSchema = z.object({
   SMTP_PASS: z.string().default(''),
   SMTP_FROM: z.string().default('GráficaOS <noreply@graficaos.com>'),
 
-  // Horário considerado "pontual" (HH:MM)
-  HORARIO_ENTRADA_PONTUAL: z.string().default('08:15'),
+  // Horário considerado "pontual" (HH:MM) — 15min de tolerância após entrada às 10h
+  HORARIO_ENTRADA_PONTUAL: z.string().default('10:15'),
 });
 
 const parsed = envSchema.safeParse(process.env);

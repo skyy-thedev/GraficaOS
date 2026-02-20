@@ -5,7 +5,7 @@ import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, getDaysInMont
 import { ptBR } from 'date-fns/locale';
 import {
   Clock, Calendar, Timer, LogIn, Coffee, RotateCcw, LogOut, CheckCircle,
-  Flame, BarChart3, Target,
+  Flame, BarChart3, Target, Briefcase,
 } from 'lucide-react';
 import type { Ponto } from '@/types';
 
@@ -175,12 +175,15 @@ export function PontoPage() {
         days.push({ day: d, status: 'future', tooltip: '' });
         continue;
       }
-      if (isWeekend) {
+
+      const ponto = pontosMap.get(d);
+
+      // Se é fim de semana sem registro, mostra como weekend
+      if (isWeekend && (!ponto || !ponto.entrada)) {
         days.push({ day: d, status: 'weekend', tooltip: 'Fim de semana' });
         continue;
       }
 
-      const ponto = pontosMap.get(d);
       if (!ponto || !ponto.entrada) {
         days.push({ day: d, status: 'absent', tooltip: 'Falta' });
       } else if (ponto.encerramentoAutomatico) {
@@ -334,6 +337,26 @@ export function PontoPage() {
               {baterPonto.isPending ? 'Registrando...' : btnState.label}
             </button>
           )}
+
+          {/* Horários definidos */}
+          <div className="ponto-schedule-info">
+            <Briefcase size={13} />
+            <div className="ponto-schedule-options">
+              <span className="ponto-schedule-group">
+                <span className="ponto-schedule-label">Entrada:</span>
+                <span className="ponto-schedule-tag">10h</span>
+                <span className="ponto-schedule-tag ponto-schedule-tag-alt" title="Domingos e feriados">12h<sup>*</sup></span>
+                <span className="ponto-schedule-tag">13h</span>
+              </span>
+              <span className="ponto-schedule-sep">|</span>
+              <span className="ponto-schedule-group">
+                <span className="ponto-schedule-label">Saída:</span>
+                <span className="ponto-schedule-tag">18h30</span>
+                <span className="ponto-schedule-tag ponto-schedule-tag-alt" title="Domingos e feriados">20h<sup>*</sup></span>
+                <span className="ponto-schedule-tag">22h</span>
+              </span>
+            </div>
+          </div>
         </section>
 
         {/* ===== SEÇÃO 2: Cards de Resumo ===== */}

@@ -1,15 +1,34 @@
 import { prisma } from '../prisma/client';
 
 /**
+ * Retorna a data/hora atual no fuso de São Paulo.
+ */
+function getBrazilNow(): Date {
+  const now = new Date();
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Sao_Paulo',
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit',
+    hour12: false,
+  }).formatToParts(now);
+  const get = (type: string) => parts.find(p => p.type === type)?.value ?? '0';
+  return new Date(
+    Number(get('year')), Number(get('month')) - 1, Number(get('day')),
+    Number(get('hour')), Number(get('minute')), Number(get('second'))
+  );
+}
+
+/**
  * Job de encerramento automático de pontos.
- * Roda às 22h e encerra todos os pontos de hoje que têm entrada mas não têm saída.
+ * Roda às 22h (horário de Brasília) e encerra todos os pontos de hoje que têm entrada mas não têm saída.
  */
 export async function fecharPontosAbertos() {
-  const hoje = new Date();
-  hoje.setHours(0, 0, 0, 0);
+  const br = getBrazilNow();
+  const hoje = new Date(Date.UTC(br.getFullYear(), br.getMonth(), br.getDate()));
 
-  const horarioEncerramento = new Date();
-  horarioEncerramento.setHours(22, 0, 0, 0);
+  const horarioEncerramento = new Date(
+    br.getFullYear(), br.getMonth(), br.getDate(), 22, 0, 0
+  );
 
   // Buscar pontos de hoje que têm entrada mas NÃO têm saída
   const pontosAbertos = await prisma.ponto.findMany({

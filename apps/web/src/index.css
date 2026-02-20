@@ -579,6 +579,69 @@ body {
   cursor: default;
 }
 
+/* Horários definidos */
+.ponto-schedule-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 16px;
+  padding: 10px 16px;
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  color: var(--text3);
+  font-size: 12px;
+}
+
+.ponto-schedule-options {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.ponto-schedule-group {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.ponto-schedule-label {
+  font-weight: 600;
+  color: var(--text2);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.ponto-schedule-tag {
+  padding: 2px 7px;
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text2);
+}
+
+.ponto-schedule-tag-alt {
+  background: var(--accent-glow);
+  border-color: rgba(108, 99, 255, 0.2);
+  color: var(--accent);
+}
+
+.ponto-schedule-tag-alt sup {
+  font-size: 8px;
+}
+
+.ponto-schedule-sep {
+  color: var(--border2);
+  font-size: 14px;
+  margin: 0 2px;
+}
+
 /* Summary Row */
 .ponto-summary-row {
   display: grid;

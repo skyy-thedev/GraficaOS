@@ -46,7 +46,7 @@ app.listen(env.PORT, () => {
   console.log(`🚀 GráficaOS API rodando na porta ${env.PORT}`);
 });
 
-// Job de encerramento automático — roda todo dia às 22:00
+// Job de encerramento automático — roda todo dia às 22:00 (horário de Brasília)
 cron.schedule('0 22 * * *', async () => {
   console.log('🕙 Iniciando job de encerramento automático de pontos...');
   try {
@@ -54,6 +54,6 @@ cron.schedule('0 22 * * *', async () => {
   } catch (err) {
     console.error('❌ Erro no job de encerramento:', err);
   }
-});
+}, { timezone: 'America/Sao_Paulo' });
 
 export { app };

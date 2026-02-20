@@ -7,12 +7,33 @@ import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
 /**
+ * Retorna a data/hora atual no fuso de São Paulo (America/Sao_Paulo).
+ * Necessário porque o servidor roda em UTC (Render) mas os usuários estão no Brasil.
+ */
+function getBrazilNow(): Date {
+  const now = new Date();
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Sao_Paulo',
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit',
+    hour12: false,
+  }).formatToParts(now);
+
+  const get = (type: string) => parts.find(p => p.type === type)?.value ?? '0';
+  return new Date(
+    Number(get('year')), Number(get('month')) - 1, Number(get('day')),
+    Number(get('hour')), Number(get('minute')), Number(get('second'))
+  );
+}
+
+/**
  * Retorna a data de hoje no formato Date (início do dia, sem horário)
- * para uso no campo @db.Date do Prisma
+ * para uso no campo @db.Date do Prisma.
+ * Usa o fuso de São Paulo para determinar qual dia é "hoje".
  */
 function getToday(): Date {
-  const now = new Date();
-  return new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const br = getBrazilNow();
+  return new Date(Date.UTC(br.getFullYear(), br.getMonth(), br.getDate()));
 }
 
 /** Busca todos os pontos (ADMIN) ou apenas do usuário (EMPLOYEE) */
@@ -55,7 +76,7 @@ export async function getPontoHoje(userId: string) {
  */
 export async function baterPonto(userId: string) {
   const today = getToday();
-  const agora = new Date();
+  const agora = getBrazilNow();
 
   // Busca ou cria o ponto do dia
   let ponto = await prisma.ponto.findUnique({
@@ -274,9 +295,13 @@ export async function getMetricas(params: {
   let diasPontuais = 0;
   for (const ponto of pontos) {
     if (ponto.entrada) {
-      const entradaDate = new Date(ponto.entrada);
-      const entradaH = entradaDate.getHours();
-      const entradaM = entradaDate.getMinutes();
+      // Extrair hora no fuso do Brasil
+      const brParts = new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'America/Sao_Paulo',
+        hour: '2-digit', minute: '2-digit', hour12: false,
+      }).formatToParts(new Date(ponto.entrada));
+      const entradaH = Number(brParts.find(p => p.type === 'hour')?.value ?? 0);
+      const entradaM = Number(brParts.find(p => p.type === 'minute')?.value ?? 0);
       if (entradaH < pontualH || (entradaH === pontualH && entradaM <= pontualM)) {
         diasPontuais++;
       }
