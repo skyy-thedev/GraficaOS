@@ -30,6 +30,7 @@ import { useState, useMemo } from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, subMonths } from 'date-fns';
+import { toZonedTime, format as formatTz } from 'date-fns-tz';
 import {
   BarChart,
   Bar,
@@ -491,9 +492,10 @@ export function PontoAnalyticsPage() {
 
 function TimeTag({ value, color, dimColor }: { value: string | null; color: string; dimColor: string }) {
   if (!value) return <span className="timetag-empty text-20">—</span>;
+  const zoned = toZonedTime(new Date(value), 'America/Sao_Paulo');
   return (
     <span className="inline-block px-2 py-0-5 rounded text-19 timetag-filled" style={{ background: dimColor, color }}>
-      {format(new Date(value), 'HH:mm')}
+      {formatTz(zoned, 'HH:mm', { timeZone: 'America/Sao_Paulo' })}
     </span>
   );
 }

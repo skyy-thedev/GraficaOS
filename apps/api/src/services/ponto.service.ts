@@ -11,6 +11,7 @@ import { ptBR } from 'date-fns/locale';
  * Retorna a data/hora atual no fuso de São Paulo (America/Sao_Paulo).
  * Necessário porque o servidor roda em UTC (Render) mas os usuários estão no Brasil.
  */
+
 function getBrazilNow(): Date {
   const now = new Date();
   const parts = new Intl.DateTimeFormat('en-CA', {
@@ -21,10 +22,9 @@ function getBrazilNow(): Date {
   }).formatToParts(now);
 
   const get = (type: string) => parts.find(p => p.type === type)?.value ?? '0';
-  return new Date(
-    Number(get('year')), Number(get('month')) - 1, Number(get('day')),
-    Number(get('hour')), Number(get('minute')), Number(get('second'))
-  );
+  // Monta string ISO com offset -03:00
+  const iso = `${get('year')}-${get('month')}-${get('day')}T${get('hour')}:${get('minute')}:${get('second')}-03:00`;
+  return new Date(iso);
 }
 
 /**
