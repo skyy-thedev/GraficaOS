@@ -36,13 +36,13 @@ import {
   useRelatorioChecklist,
 } from '@/hooks/useChecklist';
 import type { ItemHoje, ChecklistItemConfig, RelatorioDia } from '@/types';
+import { getAgoraSP, formatarHora as fmtHoraTz } from '@/utils/timezone';
 
 // ===== Helpers =====
 
 function formatHora(iso: string | null): string {
   if (!iso) return '';
-  const d = new Date(iso);
-  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+  return fmtHoraTz(iso);
 }
 
 function getCardState(item: ItemHoje): 'done-on-time' | 'done-late' | 'late' | 'pending' {
@@ -66,10 +66,8 @@ function getProgressColor(pct: number): string {
 }
 
 function todayFormatted(): string {
-  const d = new Date();
-  const dias = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
-  const meses = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
-  return `${dias[d.getDay()]}, ${d.getDate()} de ${meses[d.getMonth()]} de ${d.getFullYear()}`;
+  const sp = getAgoraSP().setLocale('pt-BR');
+  return sp.toFormat("cccc, d 'de' MMMM 'de' yyyy");
 }
 
 function formatDateBR(dateStr: string): string {
@@ -102,10 +100,7 @@ export function ChecklistPage() {
   // Relógio
   useEffect(() => {
     const tick = () => {
-      const now = new Date();
-      setClock(
-        `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`,
-      );
+      setClock(getAgoraSP().toFormat('HH:mm:ss'));
     };
     tick();
     const id = setInterval(tick, 1000);

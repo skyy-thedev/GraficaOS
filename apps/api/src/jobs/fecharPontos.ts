@@ -1,34 +1,16 @@
 import { prisma } from '../prisma/client';
-
-/**
- * Retorna a data/hora atual no fuso de São Paulo.
- */
-function getBrazilNow(): Date {
-  const now = new Date();
-  const parts = new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'America/Sao_Paulo',
-    year: 'numeric', month: '2-digit', day: '2-digit',
-    hour: '2-digit', minute: '2-digit', second: '2-digit',
-    hour12: false,
-  }).formatToParts(now);
-  const get = (type: string) => parts.find(p => p.type === type)?.value ?? '0';
-  return new Date(
-    Number(get('year')), Number(get('month')) - 1, Number(get('day')),
-    Number(get('hour')), Number(get('minute')), Number(get('second'))
-  );
-}
+import { getHojeEmSaoPaulo, getAgoraEmSaoPaulo } from '../utils/timezone';
 
 /**
  * Job de encerramento automático de pontos.
  * Roda às 22h (horário de Brasília) e encerra todos os pontos de hoje que têm entrada mas não têm saída.
  */
 export async function fecharPontosAbertos() {
-  const br = getBrazilNow();
-  const hoje = new Date(Date.UTC(br.getFullYear(), br.getMonth(), br.getDate()));
+  const hoje = getHojeEmSaoPaulo();
+  const agoraEmSP = getAgoraEmSaoPaulo();
 
-  const horarioEncerramento = new Date(
-    br.getFullYear(), br.getMonth(), br.getDate(), 22, 0, 0
-  );
+  // Criar DateTime para 22:00 de hoje em SP e converter para JS Date (UTC)
+  const horarioEncerramento = agoraEmSP.set({ hour: 22, minute: 0, second: 0, millisecond: 0 }).toJSDate();
 
   // Buscar pontos de hoje que têm entrada mas NÃO têm saída
   const pontosAbertos = await prisma.ponto.findMany({
@@ -45,7 +27,7 @@ export async function fecharPontosAbertos() {
     return { encerrados: 0, usuarios: [] };
   }
 
-  // Atualizar todos com saída = 22:00
+  // Atualizar todos com saída = 22:00 (horário de Brasília, convertido para UTC)
   const resultado = await prisma.ponto.updateMany({
     where: {
       id: { in: pontosAbertos.map((p) => p.id) },
@@ -62,9 +44,9 @@ export async function fecharPontosAbertos() {
     entrada: p.entrada,
   }));
 
-  console.log(`⏰ ${resultado.count} pontos encerrados automaticamente às 22h`);
+  console.log(`⏰ ${resultado.count} pontos encerrados automaticamente às 22h (horário de Brasília)`);
   usuarios.forEach((u) => {
-    console.log(`   → ${u.name} (entrada: ${u.entrada ? new Date(u.entrada).toLocaleTimeString('pt-BR') : '—'})`);
+    console.log(`   → ${u.name}`);
   });
 
   return { encerrados: resultado.count, usuarios };

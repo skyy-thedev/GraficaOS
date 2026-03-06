@@ -1,29 +1,30 @@
 import { prisma } from '../prisma/client';
+import { getHojeEmSaoPaulo, getAgoraEmSaoPaulo, formatarHoraBR, getHoraMinutoSP } from '../utils/timezone';
 
 // ===== Helpers =====
 
 function getToday(): Date {
-  const now = new Date();
-  return new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  return getHojeEmSaoPaulo();
 }
 
 function getHHMM(date: Date): string {
-  return `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
+  return formatarHoraBR(date);
 }
 
 function isAtrasado(horarioLimite: string | null, feito: boolean): boolean {
   if (!horarioLimite || feito) return false;
-  const now = new Date();
+  const agora = getAgoraEmSaoPaulo();
   const [h, m] = horarioLimite.split(':').map(Number);
-  const limite = new Date(now.getFullYear(), now.getMonth(), now.getDate(), h, m);
-  return now > limite;
+  // Compara hora atual em SP com limite
+  return agora.hour > (h ?? 0) || (agora.hour === (h ?? 0) && agora.minute > (m ?? 0));
 }
 
 function isNoHorario(feitoEm: Date | null, horarioLimite: string | null): boolean {
   if (!feitoEm || !horarioLimite) return false;
   const [h, m] = horarioLimite.split(':').map(Number);
-  const limite = new Date(feitoEm.getFullYear(), feitoEm.getMonth(), feitoEm.getDate(), h, m);
-  return feitoEm <= limite;
+  const { hora, minuto } = getHoraMinutoSP(feitoEm);
+  // Foi feito antes ou no horário limite
+  return hora < (h ?? 0) || (hora === (h ?? 0) && minuto <= (m ?? 0));
 }
 
 // ===== Itens (ADMIN) =====

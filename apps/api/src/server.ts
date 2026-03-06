@@ -1,3 +1,6 @@
+// Forçar timezone do processo Node para UTC (padrão internacional)
+process.env.TZ = 'UTC';
+
 import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';

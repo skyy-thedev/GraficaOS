@@ -16,6 +16,8 @@ import type {
   CreateChecklistItemRequest,
   UpdateChecklistItemRequest,
   MetricasPonto,
+  Anomalia,
+  InsightsPeriodo,
 }from '@/types';
 
 // ===== Auth =====
@@ -68,6 +70,12 @@ export const pontosApi = {
   metricas: (params: { userId?: string; startDate: string; endDate: string }) =>
     api.get<MetricasPonto>('/pontos/metricas', { params }).then((r) => r.data),
 
+  anomalias: (params: { userId?: string; startDate: string; endDate: string }) =>
+    api.get<Anomalia[]>('/pontos/anomalias', { params }).then((r) => r.data),
+
+  insights: (params: { startDate: string; endDate: string }) =>
+    api.get<InsightsPeriodo>('/pontos/insights', { params }).then((r) => r.data),
+
   exportCSV: (params: { userId?: string; startDate: string; endDate: string }) =>
     api.get('/pontos/export/csv', { params, responseType: 'blob' }).then((r) => r.data as Blob),
 
@@ -79,6 +87,18 @@ export const pontosApi = {
 
   enviarEmail: (params: { userId?: string; startDate: string; endDate: string; destinatario: string }) =>
     api.post<{ sent: boolean; message: string }>('/pontos/export/email', params).then((r) => r.data),
+
+  editar: (id: string, data: { entrada?: string | null; almoco?: string | null; retorno?: string | null; saida?: string | null; status?: string; date?: string }) =>
+    api.put<Ponto>(`/pontos/${id}`, data).then((r) => r.data),
+
+  criarManual: (data: { userId: string; date: string; entrada?: string | null; almoco?: string | null; retorno?: string | null; saida?: string | null; status?: string }) =>
+    api.post<Ponto>('/pontos/manual', data).then((r) => r.data),
+
+  listarFolgas: (userId?: string) =>
+    api.get<import('@/types').FolgaConfig[]>('/pontos/folgas', { params: userId ? { userId } : {} }).then((r) => r.data),
+
+  configurarFolgas: (data: { userId: string; diasSemana: number[] }) =>
+    api.post<import('@/types').FolgaConfig[]>('/pontos/folgas', data).then((r) => r.data),
 };
 
 // ===== Artes =====

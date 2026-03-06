@@ -24,6 +24,7 @@ import { usePontos } from '@/hooks/usePonto';
 import { useArtes } from '@/hooks/useArtes';
 import { useAuth } from '@/hooks/useAuth';
 import { useToastStore } from '@/stores/toastStore';
+import { getAgoraSP } from '@/utils/timezone';
 import type { User, Role, CreateUserRequest, Ponto, Arte } from '@/types';
 import {
   Plus,
@@ -221,8 +222,9 @@ export function FuncionariosPage() {
   const allUsers = users ?? [];
 
   // Pontos de hoje para calcular status
+  const todayStr = getAgoraSP().toFormat('yyyy-MM-dd');
   const pontosHoje = allPontos?.filter((p: Ponto) => {
-    return new Date(p.date).toDateString() === new Date().toDateString();
+    return p.date.substring(0, 10) === todayStr;
   }) ?? [];
 
   // Artes ativas por responsável

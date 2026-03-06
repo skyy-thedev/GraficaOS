@@ -9,6 +9,7 @@ import { useChecklistHoje } from '@/hooks/useChecklist';
 import { useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
 import type { Arte, Ponto, ProdutoTipo } from '@/types';
+import { formatarHora, getAgoraSP } from '@/utils/timezone';
 
 const PRODUTO_LABELS: Record<ProdutoTipo, string> = {
   AZULEJO: 'Azulejo',
@@ -33,15 +34,15 @@ export function DashboardPage() {
   const navigate = useNavigate();
 
   const greeting = () => {
-    const hour = new Date().getHours();
+    const hour = getAgoraSP().hour;
     if (hour < 12) return 'Bom dia';
     if (hour < 18) return 'Boa tarde';
     return 'Boa noite';
   };
 
-  // Data de hoje no fuso local (YYYY-MM-DD)
-  const now = new Date();
-  const todayLocal = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  // Data de hoje no fuso de São Paulo (YYYY-MM-DD)
+  const spNow = getAgoraSP();
+  const todayLocal = spNow.toFormat('yyyy-MM-dd');
 
   // Pontos de hoje
   const pontosHoje = allPontos?.filter((p: Ponto) => {
@@ -162,8 +163,8 @@ export function DashboardPage() {
               ) : (
                 <div className="dash-list">
                   {pontosHoje.map((ponto) => {
-                    const entradaFmt = ponto.entrada ? format(new Date(ponto.entrada), 'HH:mm') : '--:--';
-                    const saidaFmt = ponto.saida ? format(new Date(ponto.saida), 'HH:mm') : null;
+                    const entradaFmt = ponto.entrada ? formatarHora(ponto.entrada) : '--:--';
+                    const saidaFmt = ponto.saida ? formatarHora(ponto.saida) : null;
 
                     let statusLabel = 'Aguardando';
                     let dotColor = 'var(--text3)';

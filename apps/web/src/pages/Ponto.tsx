@@ -8,6 +8,7 @@ import {
   Flame, BarChart3, Target, Briefcase,
 } from 'lucide-react';
 import type { Ponto } from '@/types';
+import { formatarHora, getAgoraSP, parseDateOnly } from '@/utils/timezone';
 
 // ===== Helpers =====
 
@@ -71,7 +72,7 @@ function getWorkingStatus(pontoHoje: Ponto | null | undefined): { label: string;
 
 function fmtTime(dateStr: string | null): string {
   if (!dateStr) return '—';
-  return format(new Date(dateStr), 'HH:mm');
+  return formatarHora(dateStr);
 }
 
 function getStreakBadge(streak: number): { emoji: string; label: string; color: string } | null {
@@ -99,10 +100,10 @@ const TIMELINE_ITEMS = [
 export function PontoPage() {
   const { data: pontoHoje, isLoading } = usePontoHoje();
   const baterPonto = useBaterPonto();
-  const [currentTime, setCurrentTime] = useState(new Date());
+  const [currentTime, setCurrentTime] = useState(getAgoraSP());
 
   useEffect(() => {
-    const interval = setInterval(() => setCurrentTime(new Date()), 1000);
+    const interval = setInterval(() => setCurrentTime(getAgoraSP()), 1000);
     return () => clearInterval(interval);
   }, []);
 
@@ -133,9 +134,9 @@ export function PontoPage() {
   const horasHoje = pontoHoje ? calcularHoras(pontoHoje) : null;
   const horasEmCurso = pontoHoje && !pontoHoje.saida ? calcularHorasEmCurso(pontoHoje) : null;
 
-  const hours = format(currentTime, 'HH');
-  const minutes = format(currentTime, 'mm');
-  const seconds = format(currentTime, 'ss');
+  const hours = currentTime.toFormat('HH');
+  const minutes = currentTime.toFormat('mm');
+  const seconds = currentTime.toFormat('ss');
 
   const stepsCompleted = pontoHoje
     ? [pontoHoje.entrada, pontoHoje.almoco, pontoHoje.retorno, pontoHoje.saida].filter(Boolean).length
@@ -150,7 +151,7 @@ export function PontoPage() {
     const pontosMap = new Map<number, Ponto>();
     if (historicoMensal) {
       for (const p of historicoMensal) {
-        const d = new Date(p.date).getDate();
+        const d = parseInt(p.date.substring(8, 10), 10);
         pontosMap.set(d, p);
       }
     }
@@ -305,7 +306,7 @@ export function PontoPage() {
 
           <div className="ponto-date-row">
             <Calendar size={14} />
-            <span>{format(currentTime, "EEEE, dd 'de' MMMM 'de' yyyy", { locale: ptBR })}</span>
+            <span>{currentTime.setLocale('pt-BR').toFormat("cccc, dd 'de' MMMM 'de' yyyy")}</span>
           </div>
 
           {workingStatus && (
@@ -502,8 +503,10 @@ export function PontoPage() {
               {historicoSemanal.map((p) => {
                 const horas = calcularHoras(p);
                 const status = getPontoStatusLabel(p);
-                const isToday = new Date(p.date).toDateString() === new Date().toDateString();
-                const dayLabel = format(new Date(p.date), "EEE, dd/MM", { locale: ptBR });
+                const pDateStr = p.date.substring(0, 10);
+                const isToday = pDateStr === getAgoraSP().toFormat('yyyy-MM-dd');
+                const dt = parseDateOnly(p.date);
+                const dayLabel = format(dt.toJSDate(), "EEE, dd/MM", { locale: ptBR });
 
                 return (
                   <div key={p.id} className={`ponto-hist-row${isToday ? ' ponto-hist-today' : ''}`}>

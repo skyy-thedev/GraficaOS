@@ -12,6 +12,18 @@ router.get('/hoje', pontoController.hoje);
 router.post('/bater', pontoController.bater);
 router.get('/relatorio', pontoController.relatorio);
 router.get('/metricas', pontoController.metricas);
+router.get('/anomalias', pontoController.anomalias);
+router.get('/insights', pontoController.insights);
+
+// Ponto manual (somente admin)
+router.post('/manual', adminOnly, pontoController.criarManual);
+
+// Folgas (somente admin)
+router.get('/folgas', adminOnly, pontoController.listarFolgas);
+router.post('/folgas', adminOnly, pontoController.configurarFolgas);
+
+// Edição de ponto (somente admin) — DEVE ficar após rotas nomeadas
+router.put('/:id', adminOnly, pontoController.editar);
 
 // Exportações (somente admin)
 router.get('/export/csv', adminOnly, pontoController.exportCSV);

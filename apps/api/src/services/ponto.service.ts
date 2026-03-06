@@ -6,36 +6,23 @@ import nodemailer from 'nodemailer';
 import { Resend } from 'resend';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { DateTime } from 'luxon';
+import {
+  getHojeEmSaoPaulo,
+  getAgoraEmSaoPaulo,
+  formatarDataBR,
+  formatarHoraBR,
+  formatarDataHoraBR,
+  toSaoPaulo,
+  getHoraMinutoSP,
+  parseDateOnly,
+  formatarDateOnlyBR,
+  formatarDateOnlyCurtaBR,
+} from '../utils/timezone';
 
-/**
- * Retorna a data/hora atual no fuso de São Paulo (America/Sao_Paulo).
- * Necessário porque o servidor roda em UTC (Render) mas os usuários estão no Brasil.
- */
-
-function getBrazilNow(): Date {
-  const now = new Date();
-  const parts = new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'America/Sao_Paulo',
-    year: 'numeric', month: '2-digit', day: '2-digit',
-    hour: '2-digit', minute: '2-digit', second: '2-digit',
-    hour12: false,
-  }).formatToParts(now);
-
-  const get = (type: string) => parts.find(p => p.type === type)?.value ?? '0';
-  // Monta string ISO com offset -03:00
-  const iso = `${get('year')}-${get('month')}-${get('day')}T${get('hour')}:${get('minute')}:${get('second')}-03:00`;
-  return new Date(iso);
-}
-
-/**
- * Retorna a data de hoje no formato Date (início do dia, sem horário)
- * para uso no campo @db.Date do Prisma.
- * Usa o fuso de São Paulo para determinar qual dia é "hoje".
- */
-function getToday(): Date {
-  const br = getBrazilNow();
-  return new Date(Date.UTC(br.getFullYear(), br.getMonth(), br.getDate()));
-}
+// As funções de timezone agora vêm de ../utils/timezone.ts
+// getBrazilNow → getAgoraEmSaoPaulo().toJSDate()
+// getToday → getHojeEmSaoPaulo()
 
 /** Busca todos os pontos (ADMIN) ou apenas do usuário (EMPLOYEE) */
 export async function listPontos(userId: string, role: string) {
@@ -54,7 +41,7 @@ export async function listPontos(userId: string, role: string) {
 
 /** Busca o ponto de hoje do usuário logado */
 export async function getPontoHoje(userId: string) {
-  const today = getToday();
+  const today = getHojeEmSaoPaulo();
 
   let ponto = await prisma.ponto.findUnique({
     where: {
@@ -76,8 +63,8 @@ export async function getPontoHoje(userId: string) {
  * Ordem: entrada → almoço → retorno → saída
  */
 export async function baterPonto(userId: string) {
-  const today = getToday();
-  const agora = getBrazilNow();
+  const today = getHojeEmSaoPaulo();
+  const agora = new Date(); // UTC — Prisma armazena em UTC
 
   // Busca ou cria o ponto do dia
   let ponto = await prisma.ponto.findUnique({
@@ -277,7 +264,7 @@ export async function getMetricas(params: {
     const mins = calcularMinutos(ponto);
     totalMinutos += mins;
     horasPorDia.push({
-      data: format(new Date(ponto.date), 'dd/MM'),
+      data: formatarDateOnlyCurtaBR(new Date(ponto.date)),
       horas: Math.round((mins / 60) * 100) / 100,
     });
   }
@@ -296,13 +283,8 @@ export async function getMetricas(params: {
   let diasPontuais = 0;
   for (const ponto of pontos) {
     if (ponto.entrada) {
-      // Extrair hora no fuso do Brasil
-      const brParts = new Intl.DateTimeFormat('en-CA', {
-        timeZone: 'America/Sao_Paulo',
-        hour: '2-digit', minute: '2-digit', hour12: false,
-      }).formatToParts(new Date(ponto.entrada));
-      const entradaH = Number(brParts.find(p => p.type === 'hour')?.value ?? 0);
-      const entradaM = Number(brParts.find(p => p.type === 'minute')?.value ?? 0);
+      // Extrair hora no fuso do Brasil usando Luxon
+      const { hora: entradaH, minuto: entradaM } = getHoraMinutoSP(new Date(ponto.entrada));
       if (entradaH < pontualH || (entradaH === pontualH && entradaM <= pontualM)) {
         diasPontuais++;
       }
@@ -319,10 +301,9 @@ export async function getMetricas(params: {
   // Frequência semanal
   const weekMap = new Map<string, { presencas: number; total: number }>();
   for (const ponto of pontos) {
-    const d = new Date(ponto.date);
-    const weekStart = new Date(d);
-    weekStart.setDate(d.getDate() - d.getDay() + 1); // segunda
-    const weekLabel = `${format(weekStart, 'dd/MM')}`;
+    const dt = parseDateOnly(new Date(ponto.date));
+    const weekStart = dt.startOf('week'); // Luxon: week starts Monday
+    const weekLabel = weekStart.toFormat('dd/MM');
 
     if (!weekMap.has(weekLabel)) {
       weekMap.set(weekLabel, { presencas: 0, total: 0 });
@@ -423,11 +404,11 @@ function pontosToRows(pontos: Array<{
 
     return {
       nome: p.user.name,
-      data: format(new Date(p.date), 'dd/MM/yyyy'),
-      entrada: p.entrada ? format(new Date(p.entrada), 'HH:mm') : '—',
-      almoco: p.almoco ? format(new Date(p.almoco), 'HH:mm') : '—',
-      retorno: p.retorno ? format(new Date(p.retorno), 'HH:mm') : '—',
-      saida: p.saida ? format(new Date(p.saida), 'HH:mm') : '—',
+      data: formatarDateOnlyBR(new Date(p.date)),
+      entrada: formatarHoraBR(p.entrada ? new Date(p.entrada) : null),
+      almoco: formatarHoraBR(p.almoco ? new Date(p.almoco) : null),
+      retorno: formatarHoraBR(p.retorno ? new Date(p.retorno) : null),
+      saida: formatarHoraBR(p.saida ? new Date(p.saida) : null),
       horas,
       status,
       encAuto: p.encerramentoAutomatico ? 'Sim' : 'Não',
@@ -584,7 +565,7 @@ export async function exportPDF(params: { userId?: string; startDate: string; en
     doc.fontSize(18).font('Helvetica-Bold').text('GráficaOS — Relatório de Pontos', { align: 'center' });
     doc.moveDown(0.3);
     doc.fontSize(10).font('Helvetica').fillColor('#666666')
-      .text(`Período: ${params.startDate} a ${params.endDate} | Gerado em: ${format(new Date(), "dd/MM/yyyy 'às' HH:mm")}`, { align: 'center' });
+      .text(`Período: ${params.startDate} a ${params.endDate} | Gerado em: ${formatarDataHoraBR(new Date())}`, { align: 'center' });
     doc.moveDown(1);
 
     // Tabela
@@ -630,6 +611,107 @@ export async function exportPDF(params: { userId?: string; startDate: string; en
         x += colWidths[i]!;
       }
       y += 18;
+    }
+
+    // ===== Resumo por funcionário =====
+    // Calcular resumo
+    const resumoMap = new Map<string, { nome: string; minutos: number; dias: number }>();
+    for (const p of pontos) {
+      const existing = resumoMap.get(p.user.name);
+      let mins = 0;
+      let worked = 0;
+      if (p.entrada && p.saida) {
+        let ms = p.saida.getTime() - p.entrada.getTime();
+        if (p.almoco && p.retorno) ms -= p.retorno.getTime() - p.almoco.getTime();
+        mins = Math.max(0, Math.floor(ms / 60000));
+        worked = 1;
+      } else if (p.entrada) {
+        worked = 1;
+      }
+      if (existing) {
+        existing.minutos += mins;
+        existing.dias += worked;
+      } else {
+        resumoMap.set(p.user.name, { nome: p.user.name, minutos: mins, dias: worked });
+      }
+    }
+    const resumo = Array.from(resumoMap.values()).sort((a, b) => b.minutos - a.minutos);
+
+    if (resumo.length > 0) {
+      // Verificar se precisa de nova página
+      const resumoHeight = 30 + resumo.length * 18 + (resumo.length > 1 ? 20 : 0) + 20;
+      if (y + resumoHeight > 540) {
+        doc.addPage();
+        y = 40;
+      } else {
+        y += 20;
+      }
+
+      // Título do resumo
+      doc.font('Helvetica-Bold').fontSize(12).fillColor('#333333')
+        .text('Resumo do Período', startX, y);
+      y += 20;
+
+      // Header do resumo
+      const rHeaders = ['Funcionário', 'Dias Trabalhados', 'Total de Horas', 'Média Diária'];
+      const rColWidths = [200, 120, 140, 140];
+      let rx = startX;
+      doc.font('Helvetica-Bold').fontSize(8).fillColor('#ffffff');
+      for (let i = 0; i < rHeaders.length; i++) {
+        doc.rect(rx, y, rColWidths[i]!, 20).fill('#6c63ff');
+        doc.fillColor('#ffffff').text(rHeaders[i]!, rx + 4, y + 6, { width: rColWidths[i]! - 8 });
+        rx += rColWidths[i]!;
+      }
+      y += 20;
+
+      // Linhas do resumo
+      doc.font('Helvetica').fontSize(8).fillColor('#333333');
+      for (let idx = 0; idx < resumo.length; idx++) {
+        const r = resumo[idx]!;
+        const h = Math.floor(r.minutos / 60);
+        const m = r.minutos % 60;
+        const totalStr = `${h}h${m.toString().padStart(2, '0')}m`;
+        const avgMin = r.dias > 0 ? Math.round(r.minutos / r.dias) : 0;
+        const avgH = Math.floor(avgMin / 60);
+        const avgM = avgMin % 60;
+        const avgStr = `${avgH}h${avgM.toString().padStart(2, '0')}m / dia`;
+
+        const rValues = [r.nome, `${r.dias} ${r.dias === 1 ? 'dia' : 'dias'}`, totalStr, avgStr];
+        rx = startX;
+        const bgColor = idx % 2 === 0 ? '#f0f0ff' : '#ffffff';
+        for (let i = 0; i < rValues.length; i++) {
+          doc.rect(rx, y, rColWidths[i]!, 18).fill(bgColor);
+          doc.fillColor('#333333').text(rValues[i]!, rx + 4, y + 5, { width: rColWidths[i]! - 8 });
+          rx += rColWidths[i]!;
+        }
+        y += 18;
+      }
+
+      // Linha de total geral (se mais de 1 funcionário)
+      if (resumo.length > 1) {
+        const totalDias = resumo.reduce((s, r) => s + r.dias, 0);
+        const totalMin = resumo.reduce((s, r) => s + r.minutos, 0);
+        const totalH = Math.floor(totalMin / 60);
+        const totalM = totalMin % 60;
+        const avgGeral = totalDias > 0 ? Math.round(totalMin / totalDias) : 0;
+        const avgGeralH = Math.floor(avgGeral / 60);
+        const avgGeralM = avgGeral % 60;
+
+        rx = startX;
+        const tValues = [
+          'TOTAL GERAL',
+          `${totalDias} dias`,
+          `${totalH}h${totalM.toString().padStart(2, '0')}m`,
+          `${avgGeralH}h${avgGeralM.toString().padStart(2, '0')}m / dia`,
+        ];
+        for (let i = 0; i < tValues.length; i++) {
+          doc.rect(rx, y, rColWidths[i]!, 20).fill('#e8e6ff');
+          doc.font('Helvetica-Bold').fontSize(8).fillColor('#333333')
+            .text(tValues[i]!, rx + 4, y + 6, { width: rColWidths[i]! - 8 });
+          rx += rColWidths[i]!;
+        }
+        y += 20;
+      }
     }
 
     // Footer
@@ -725,4 +807,511 @@ export async function enviarRelatorioPorEmail(params: {
   }
 
   return { sent: true, message: `Relatório enviado para ${params.destinatario}` };
+}
+
+// ===== Anomalias =====
+
+export type AnomaliaTipo =
+  | 'JORNADA_EXCESSIVA'
+  | 'INTERVALO_CURTO'
+  | 'ENTRADA_MUITO_CEDO'
+  | 'SAIDA_MUITO_TARDE'
+  | 'MULTIPLAS_BATIDAS_RAPIDAS';
+
+export type AnomaliaSeveridade = 'BAIXA' | 'MEDIA' | 'ALTA';
+
+export interface Anomalia {
+  pontoId: string;
+  userId: string;
+  userName: string;
+  data: string;
+  tipo: AnomaliaTipo;
+  severidade: AnomaliaSeveridade;
+  descricao: string;
+  sugestao?: string;
+}
+
+/** Detecta anomalias nos pontos do período */
+export async function getAnomalias(params: {
+  userId?: string;
+  startDate: string;
+  endDate: string;
+}): Promise<Anomalia[]> {
+  const pontos = await prisma.ponto.findMany({
+    where: {
+      ...(params.userId ? { userId: params.userId } : {}),
+      date: { gte: new Date(params.startDate), lte: new Date(params.endDate) },
+    },
+    include: { user: { select: { id: true, name: true } } },
+    orderBy: { date: 'asc' },
+  });
+
+  const anomalias: Anomalia[] = [];
+
+  for (const ponto of pontos) {
+    const dataStr = formatarDateOnlyBR(new Date(ponto.date));
+    const base = { pontoId: ponto.id, userId: ponto.userId, userName: ponto.user.name, data: dataStr };
+
+    if (ponto.entrada && ponto.saida) {
+      // 1. Jornada excessiva (> 12h)
+      const totalMs = new Date(ponto.saida).getTime() - new Date(ponto.entrada).getTime();
+      let jornMs = totalMs;
+      if (ponto.almoco && ponto.retorno) {
+        jornMs -= new Date(ponto.retorno).getTime() - new Date(ponto.almoco).getTime();
+      }
+      const jornadaH = jornMs / 3600000;
+      if (jornadaH > 12) {
+        anomalias.push({
+          ...base,
+          tipo: 'JORNADA_EXCESSIVA',
+          severidade: 'ALTA',
+          descricao: `Jornada de ${Math.round(jornadaH * 10) / 10}h detectada (limite: 12h)`,
+          sugestao: 'Verificar se houve erro na batida de ponto',
+        });
+      }
+    }
+
+    // 2. Intervalo de almoço muito curto (< 30min)
+    if (ponto.almoco && ponto.retorno) {
+      const intervaloMs = new Date(ponto.retorno).getTime() - new Date(ponto.almoco).getTime();
+      const intervaloMin = intervaloMs / 60000;
+      if (intervaloMin < 30) {
+        anomalias.push({
+          ...base,
+          tipo: 'INTERVALO_CURTO',
+          severidade: 'MEDIA',
+          descricao: `Intervalo de almoço de ${Math.round(intervaloMin)}min (mínimo legal: 30min)`,
+          sugestao: 'Verificar se o funcionário está fazendo intervalo adequado',
+        });
+      }
+    }
+
+    // 3. Entrada muito cedo (antes das 05h)
+    if (ponto.entrada) {
+      const { hora } = getHoraMinutoSP(new Date(ponto.entrada));
+      if (hora < 5) {
+        anomalias.push({
+          ...base,
+          tipo: 'ENTRADA_MUITO_CEDO',
+          severidade: 'BAIXA',
+          descricao: `Entrada às ${formatarHoraBR(new Date(ponto.entrada))} (antes das 05h)`,
+          sugestao: 'Horário incomum — pode ser erro de batida',
+        });
+      }
+    }
+
+    // 4. Saída muito tarde (após 23h)
+    if (ponto.saida && !ponto.encerramentoAutomatico) {
+      const { hora } = getHoraMinutoSP(new Date(ponto.saida));
+      if (hora >= 23) {
+        anomalias.push({
+          ...base,
+          tipo: 'SAIDA_MUITO_TARDE',
+          severidade: 'MEDIA',
+          descricao: `Saída às ${formatarHoraBR(new Date(ponto.saida))} (após 23h)`,
+          sugestao: 'Verificar se há hora extra não autorizada',
+        });
+      }
+    }
+
+    // 5. Batidas muito próximas (< 5min entre entrada→almoço ou almoço→retorno)
+    if (ponto.entrada && ponto.almoco) {
+      const diffMs = new Date(ponto.almoco).getTime() - new Date(ponto.entrada).getTime();
+      if (diffMs < 300000 && diffMs >= 0) {
+        anomalias.push({
+          ...base,
+          tipo: 'MULTIPLAS_BATIDAS_RAPIDAS',
+          severidade: 'ALTA',
+          descricao: `Entrada e almoço registrados com menos de 5min de diferença`,
+          sugestao: 'Possível duplicação de batida — verificar com o funcionário',
+        });
+      }
+    }
+  }
+
+  return anomalias;
+}
+
+// ===== Insights =====
+
+export interface Destaque {
+  tipo: 'POSITIVO' | 'NEUTRO' | 'ATENCAO';
+  titulo: string;
+  descricao: string;
+  metrica?: string;
+}
+
+export interface FuncionarioDestaque {
+  melhorPresenca: { nome: string; percentual: number } | null;
+  melhorPontualidade: { nome: string; percentual: number } | null;
+  maisHoras: { nome: string; horas: string } | null;
+}
+
+export interface InsightsPeriodo {
+  periodo: { inicio: string; fim: string };
+  destaques: Destaque[];
+  funcionarioDestaque: FuncionarioDestaque;
+  recomendacoes: string[];
+}
+
+/** Gera insights automáticos para o período */
+export async function getInsights(params: {
+  startDate: string;
+  endDate: string;
+}): Promise<InsightsPeriodo> {
+  const { startDate, endDate } = params;
+
+  const pontos = await prisma.ponto.findMany({
+    where: {
+      date: { gte: new Date(startDate), lte: new Date(endDate) },
+    },
+    include: { user: { select: { id: true, name: true } } },
+    orderBy: { date: 'asc' },
+  });
+
+  const users = await prisma.user.findMany({ where: { active: true }, select: { id: true, name: true } });
+
+  // Dias úteis no período
+  const start = new Date(startDate);
+  const end = new Date(endDate);
+  let totalDiasUteis = 0;
+  const cursor = new Date(start);
+  while (cursor <= end) {
+    const day = cursor.getDay();
+    if (day !== 0 && day !== 6) totalDiasUteis++;
+    cursor.setDate(cursor.getDate() + 1);
+  }
+
+  // Dados por funcionário
+  const porFunc = new Map<string, {
+    nome: string;
+    diasPresente: number;
+    diasPontual: number;
+    totalMinutos: number;
+    encAuto: number;
+  }>();
+
+  const [pontualH, pontualM] = env.HORARIO_ENTRADA_PONTUAL.split(':').map(Number) as [number, number];
+
+  for (const ponto of pontos) {
+    const uid = ponto.userId;
+    if (!porFunc.has(uid)) {
+      porFunc.set(uid, { nome: ponto.user.name, diasPresente: 0, diasPontual: 0, totalMinutos: 0, encAuto: 0 });
+    }
+    const f = porFunc.get(uid)!;
+
+    if (ponto.entrada) {
+      f.diasPresente++;
+      f.totalMinutos += calcularMinutos(ponto);
+
+      // Pontualidade
+      const { hora, minuto } = getHoraMinutoSP(new Date(ponto.entrada));
+      if (hora < pontualH || (hora === pontualH && minuto <= pontualM)) {
+        f.diasPontual++;
+      }
+    }
+    if (ponto.encerramentoAutomatico) f.encAuto++;
+  }
+
+  const destaques: Destaque[] = [];
+  const recomendacoes: string[] = [];
+
+  // Métricas gerais
+  const totalPresencas = pontos.filter(p => p.entrada).length;
+  const totalFuncionarios = users.length;
+  const esperadoTotal = totalDiasUteis * totalFuncionarios;
+  const presencaGeral = esperadoTotal > 0 ? Math.round((totalPresencas / esperadoTotal) * 100) : 0;
+
+  if (presencaGeral >= 90) {
+    destaques.push({
+      tipo: 'POSITIVO',
+      titulo: 'Presença excelente',
+      descricao: `A equipe manteve ${presencaGeral}% de presença no período`,
+      metrica: `${presencaGeral}%`,
+    });
+  } else if (presencaGeral < 70) {
+    destaques.push({
+      tipo: 'ATENCAO',
+      titulo: 'Presença abaixo do ideal',
+      descricao: `Apenas ${presencaGeral}% de presença no período`,
+      metrica: `${presencaGeral}%`,
+    });
+  }
+
+  // Encerramentos automáticos
+  const totalEncAuto = pontos.filter(p => p.encerramentoAutomatico).length;
+  if (totalEncAuto > 0) {
+    const usersComEncAuto = new Set(pontos.filter(p => p.encerramentoAutomatico).map(p => p.user.name));
+    destaques.push({
+      tipo: 'ATENCAO',
+      titulo: `${totalEncAuto} encerramento(s) automático(s)`,
+      descricao: `${usersComEncAuto.size} funcionário(s) tiveram pontos encerrados automaticamente`,
+      metrica: `${totalEncAuto}`,
+    });
+
+    for (const [, f] of porFunc) {
+      if (f.encAuto >= 3) {
+        recomendacoes.push(`Considere conversar com ${f.nome} sobre os ${f.encAuto} encerramentos automáticos`);
+      }
+    }
+  }
+
+  // Funcionários destaque
+  let melhorPresenca: { nome: string; percentual: number } | null = null;
+  let melhorPontualidade: { nome: string; percentual: number } | null = null;
+  let maisHoras: { nome: string; horas: string } | null = null;
+  let maisHorasMin = 0;
+
+  for (const [, f] of porFunc) {
+    const pctPresenca = totalDiasUteis > 0 ? Math.round((f.diasPresente / totalDiasUteis) * 100) : 0;
+    const pctPontual = f.diasPresente > 0 ? Math.round((f.diasPontual / f.diasPresente) * 100) : 0;
+
+    if (!melhorPresenca || pctPresenca > melhorPresenca.percentual) {
+      melhorPresenca = { nome: f.nome, percentual: pctPresenca };
+    }
+    if (!melhorPontualidade || pctPontual > melhorPontualidade.percentual) {
+      melhorPontualidade = { nome: f.nome, percentual: pctPontual };
+    }
+    const h = Math.floor(f.totalMinutos / 60);
+    const m = f.totalMinutos % 60;
+    const horasStr = `${h}h${m.toString().padStart(2, '0')}m`;
+    if (f.totalMinutos > maisHorasMin) {
+      maisHoras = { nome: f.nome, horas: horasStr };
+      maisHorasMin = f.totalMinutos;
+    }
+  }
+
+  // Presença perfeita
+  if (melhorPresenca && melhorPresenca.percentual >= 100) {
+    destaques.push({
+      tipo: 'POSITIVO',
+      titulo: `${melhorPresenca.nome} com 100% de presença`,
+      descricao: 'Considere reconhecimento formal',
+    });
+    recomendacoes.push(`${melhorPresenca.nome} teve 100% de presença. Considere reconhecimento formal.`);
+  }
+
+  // Pontualidade média
+  let totalPontuais = 0;
+  let totalDiasPresentes = 0;
+  for (const [, f] of porFunc) {
+    totalPontuais += f.diasPontual;
+    totalDiasPresentes += f.diasPresente;
+  }
+  const pontualidadeGeral = totalDiasPresentes > 0 ? Math.round((totalPontuais / totalDiasPresentes) * 100) : 0;
+  if (pontualidadeGeral >= 90) {
+    destaques.push({
+      tipo: 'POSITIVO',
+      titulo: 'Pontualidade exemplar',
+      descricao: `${pontualidadeGeral}% dos registros dentro do horário`,
+      metrica: `${pontualidadeGeral}%`,
+    });
+  } else if (pontualidadeGeral < 60) {
+    destaques.push({
+      tipo: 'ATENCAO',
+      titulo: 'Pontualidade precisa de atenção',
+      descricao: `Apenas ${pontualidadeGeral}% dos registros no horário`,
+      metrica: `${pontualidadeGeral}%`,
+    });
+    recomendacoes.push('Considere uma conversa em equipe sobre horários de entrada');
+  }
+
+  return {
+    periodo: { inicio: startDate, fim: endDate },
+    destaques,
+    funcionarioDestaque: { melhorPresenca, melhorPontualidade, maisHoras },
+    recomendacoes,
+  };
+}
+
+// ==================== Edição de Ponto (Admin) ====================
+
+interface EditarPontoInput {
+  pontoId: string;
+  entrada?: string | null;
+  almoco?: string | null;
+  retorno?: string | null;
+  saida?: string | null;
+  status?: 'NORMAL' | 'FOLGA' | 'FALTA';
+  date?: string; // formato "YYYY-MM-DD"
+}
+
+/**
+ * Permite que um ADMIN edite os horários de um ponto existente.
+ * Recebe strings ISO ou "HH:mm" para cada campo. Se "HH:mm", combina com a data do ponto.
+ * Se null, limpa o campo.
+ */
+export async function editarPonto(input: EditarPontoInput) {
+  const ponto = await prisma.ponto.findUnique({
+    where: { id: input.pontoId },
+  });
+
+  if (!ponto) {
+    throw Object.assign(new Error('Ponto não encontrado'), { statusCode: 404 });
+  }
+
+  // Converte "HH:mm" ou ISO string para Date (UTC), usando a data do ponto como base
+  function parseTimeField(value: string | null | undefined, pontoDate: Date): Date | null | undefined {
+    if (value === undefined) return undefined; // campo não enviado → não altera
+    if (value === null || value === '') return null; // limpar o campo
+
+    // Se for no formato "HH:mm", combina com a data do ponto no fuso de SP
+    const hhmmMatch = value.match(/^(\d{2}):(\d{2})$/);
+    if (hhmmMatch) {
+      const [, hh, mm] = hhmmMatch;
+      // Usa a data do ponto (que é meia-noite UTC representando o dia em SP)
+      // e cria um DateTime no fuso de SP com a hora informada, depois converte pra UTC
+      const pontoSP = DateTime.fromJSDate(pontoDate, { zone: 'America/Sao_Paulo' });
+      const target = pontoSP.set({ hour: parseInt(hh!), minute: parseInt(mm!), second: 0, millisecond: 0 });
+      return target.toJSDate();
+    }
+
+    // Caso contrário, tenta parsear como ISO
+    return new Date(value);
+  }
+
+  const data: Record<string, Date | null | string> = {};
+
+  const entradaParsed = parseTimeField(input.entrada, ponto.date);
+  if (entradaParsed !== undefined) data.entrada = entradaParsed;
+
+  const almocoParsed = parseTimeField(input.almoco, ponto.date);
+  if (almocoParsed !== undefined) data.almoco = almocoParsed;
+
+  const retornoParsed = parseTimeField(input.retorno, ponto.date);
+  if (retornoParsed !== undefined) data.retorno = retornoParsed;
+
+  const saidaParsed = parseTimeField(input.saida, ponto.date);
+  if (saidaParsed !== undefined) data.saida = saidaParsed;
+
+  // Suporte a alteração de status (NORMAL/FOLGA/FALTA)
+  if (input.status) {
+    data.status = input.status;
+    // Se marcado como FOLGA ou FALTA, limpar todos os horários
+    if (input.status === 'FOLGA' || input.status === 'FALTA') {
+      data.entrada = null;
+      data.almoco = null;
+      data.retorno = null;
+      data.saida = null;
+    }
+  }
+
+  // Suporte a alteração de data
+  if (input.date) {
+    const newDate = DateTime.fromISO(input.date, { zone: 'America/Sao_Paulo' }).startOf('day').toJSDate();
+    data.date = newDate as unknown as string; // Prisma aceita Date para campo Date
+  }
+
+  const updated = await prisma.ponto.update({
+    where: { id: input.pontoId },
+    data,
+    include: {
+      user: {
+        select: { id: true, name: true, initials: true, avatarColor: true },
+      },
+    },
+  });
+
+  return updated;
+}
+
+// ==================== Ponto Manual (Admin) ====================
+
+interface CriarPontoManualInput {
+  userId: string;
+  date: string; // "YYYY-MM-DD"
+  entrada?: string | null;  // "HH:mm"
+  almoco?: string | null;
+  retorno?: string | null;
+  saida?: string | null;
+  status?: 'NORMAL' | 'FOLGA' | 'FALTA';
+}
+
+/**
+ * Permite que ADMIN crie um registro de ponto manualmente para qualquer funcionário/dia.
+ */
+export async function criarPontoManual(input: CriarPontoManualInput) {
+  const dateObj = DateTime.fromISO(input.date, { zone: 'America/Sao_Paulo' }).startOf('day').toJSDate();
+
+  // Verifica se já existe ponto para esse dia
+  const existing = await prisma.ponto.findUnique({
+    where: { userId_date: { userId: input.userId, date: dateObj } },
+  });
+  if (existing) {
+    throw Object.assign(new Error('Já existe um registro de ponto para este funcionário nesta data.'), { statusCode: 409 });
+  }
+
+  function toDate(hhmm: string | null | undefined): Date | null {
+    if (!hhmm) return null;
+    const match = hhmm.match(/^(\d{2}):(\d{2})$/);
+    if (!match) return null;
+    const [, hh, mm] = match;
+    const dt = DateTime.fromJSDate(dateObj, { zone: 'America/Sao_Paulo' })
+      .set({ hour: parseInt(hh!), minute: parseInt(mm!), second: 0, millisecond: 0 });
+    return dt.toJSDate();
+  }
+
+  const status = input.status ?? 'NORMAL';
+  const isFolgaFalta = status === 'FOLGA' || status === 'FALTA';
+
+  const ponto = await prisma.ponto.create({
+    data: {
+      userId: input.userId,
+      date: dateObj,
+      entrada: isFolgaFalta ? null : toDate(input.entrada),
+      almoco: isFolgaFalta ? null : toDate(input.almoco),
+      retorno: isFolgaFalta ? null : toDate(input.retorno),
+      saida: isFolgaFalta ? null : toDate(input.saida),
+      status,
+    },
+    include: {
+      user: { select: { id: true, name: true, initials: true, avatarColor: true } },
+    },
+  });
+
+  return ponto;
+}
+
+// ==================== Folga Config ====================
+
+/** Lista folgas configuradas (todas ou de um usuário) */
+export async function listarFolgas(userId?: string) {
+  const where = userId ? { userId } : {};
+  return prisma.folgaConfig.findMany({
+    where,
+    include: {
+      user: { select: { id: true, name: true, initials: true, avatarColor: true } },
+    },
+    orderBy: [{ userId: 'asc' }, { diaSemana: 'asc' }],
+  });
+}
+
+/** Configura folgas de um funcionário (substitui dias anteriores) */
+export async function configurarFolgas(userId: string, diasSemana: number[]) {
+  // Remove folgas anteriores
+  await prisma.folgaConfig.deleteMany({ where: { userId } });
+
+  // Cria novas folgas
+  if (diasSemana.length > 0) {
+    await prisma.folgaConfig.createMany({
+      data: diasSemana.map((dia) => ({ userId, diaSemana: dia })),
+    });
+  }
+
+  return prisma.folgaConfig.findMany({
+    where: { userId },
+    include: {
+      user: { select: { id: true, name: true, initials: true, avatarColor: true } },
+    },
+    orderBy: { diaSemana: 'asc' },
+  });
+}
+
+/** Verifica se um dia é folga para um usuário */
+export async function isDiaFolga(userId: string, date: Date): Promise<boolean> {
+  const diaSemana = DateTime.fromJSDate(date, { zone: 'America/Sao_Paulo' }).weekday % 7; // luxon: 1=Mon..7=Sun → 0=Sun..6=Sat
+  const folga = await prisma.folgaConfig.findUnique({
+    where: { userId_diaSemana: { userId, diaSemana } },
+  });
+  return !!folga;
 }

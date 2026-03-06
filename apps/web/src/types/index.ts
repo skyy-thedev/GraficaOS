@@ -4,6 +4,7 @@ export type Role = 'ADMIN' | 'EMPLOYEE';
 export type ArteStatus = 'TODO' | 'DOING' | 'REVIEW' | 'DONE';
 export type Urgencia = 'LOW' | 'NORMAL' | 'HIGH';
 export type ProdutoTipo = 'AZULEJO' | 'BANNER' | 'ADESIVO' | 'PLACA' | 'FAIXA' | 'OUTRO';
+export type PontoStatus = 'NORMAL' | 'FOLGA' | 'FALTA';
 
 export interface User {
   id: string;
@@ -26,8 +27,18 @@ export interface Ponto {
   almoco: string | null;
   retorno: string | null;
   saida: string | null;
+  status?: PontoStatus;
   encerramentoAutomatico?: boolean;
   horasTrabalhadas?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface FolgaConfig {
+  id: string;
+  userId: string;
+  user: Pick<User, 'id' | 'name' | 'initials' | 'avatarColor'>;
+  diaSemana: number; // 0=DOM..6=SAB
   createdAt: string;
   updatedAt: string;
 }
@@ -47,6 +58,50 @@ export interface MetricasPonto {
   encerramentosAutomaticos: number;
   horasPorDia: { data: string; horas: number }[];
   frequenciaSemanal: { semana: string; presencas: number; total: number }[];
+}
+
+// ===== Anomalias =====
+
+export type AnomaliaTipo =
+  | 'JORNADA_EXCESSIVA'
+  | 'INTERVALO_CURTO'
+  | 'ENTRADA_MUITO_CEDO'
+  | 'SAIDA_MUITO_TARDE'
+  | 'MULTIPLAS_BATIDAS_RAPIDAS';
+
+export type AnomaliaSeveridade = 'BAIXA' | 'MEDIA' | 'ALTA';
+
+export interface Anomalia {
+  pontoId: string;
+  userId: string;
+  userName: string;
+  data: string;
+  tipo: AnomaliaTipo;
+  severidade: AnomaliaSeveridade;
+  descricao: string;
+  sugestao?: string;
+}
+
+// ===== Insights =====
+
+export interface Destaque {
+  tipo: 'POSITIVO' | 'NEUTRO' | 'ATENCAO';
+  titulo: string;
+  descricao: string;
+  metrica?: string;
+}
+
+export interface FuncionarioDestaque {
+  melhorPresenca: { nome: string; percentual: number } | null;
+  melhorPontualidade: { nome: string; percentual: number } | null;
+  maisHoras: { nome: string; horas: string } | null;
+}
+
+export interface InsightsPeriodo {
+  periodo: { inicio: string; fim: string };
+  destaques: Destaque[];
+  funcionarioDestaque: FuncionarioDestaque;
+  recomendacoes: string[];
 }
 
 export interface Arquivo {

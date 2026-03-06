@@ -23,24 +23,43 @@ model User {
   updatedAt   DateTime @updatedAt
 
   pontos Ponto[]
+  folgas FolgaConfig[]
   artes  Arte[]  @relation("ArteResponsavel")
   checklistRegistros ChecklistRegistro[]
 }
 
 model Ponto {
-  id        String    @id @default(cuid())
+  id        String      @id @default(cuid())
   userId    String
-  user      User      @relation(fields: [userId], references: [id])
-  date      DateTime  @default(now()) @db.Date
+  user      User        @relation(fields: [userId], references: [id])
+  date      DateTime    @default(now()) @db.Date
   entrada   DateTime?
   almoco    DateTime?
   retorno   DateTime?
   saida     DateTime?
+  status    PontoStatus @default(NORMAL)
   encerramentoAutomatico Boolean @default(false)
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
 
   @@unique([userId, date])
+}
+
+model FolgaConfig {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  diaSemana Int      // 0=DOM, 1=SEG, 2=TER, 3=QUA, 4=QUI, 5=SEX, 6=SAB
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, diaSemana])
+}
+
+enum PontoStatus {
+  NORMAL
+  FOLGA
+  FALTA
 }
 
 model Arte {
