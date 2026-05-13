@@ -71,9 +71,23 @@ graficaos/
 | `npm run dev:api` | Inicia apenas a API |
 | `npm run dev:web` | Inicia apenas o Frontend |
 | `npm run build` | Build de produção |
+| `npm run render:build` | Gera Prisma Client + build da API para Render |
+| `npm run render:start` | Aplica migrações e inicia a API em produção |
 | `npm run db:migrate` | Executa migrações do Prisma |
 | `npm run db:seed` | Popula o banco com dados de exemplo |
 | `npm run db:studio` | Abre o Prisma Studio |
+
+## ☁️ Deploy no Render
+
+Para a API no Render, use os comandos abaixo no serviço backend:
+
+- **Build Command:** `npm run render:build`
+- **Start Command:** `npm run render:start`
+
+Isso evita dois problemas comuns em produção:
+
+- o servidor subir a partir de código TypeScript/ESM incorreto em vez de `dist/server.js`
+- o banco ficar sem as migrações recentes do Prisma, causando erro `500` em rotas como `/api/artes`
 
 ## 🎨 Design System
 

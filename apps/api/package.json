@@ -4,9 +4,10 @@
   "private": true,
   "scripts": {
     "dev": "tsx watch src/server.ts",
-    "build": "tsup src/server.ts --out-dir dist --external date-fns --external exceljs --external pdfkit --external nodemailer --external node-cron --external resend",
+    "build": "prisma generate && tsup src/server.ts --out-dir dist --external date-fns --external exceljs --external pdfkit --external nodemailer --external node-cron --external resend",
     "start": "node dist/server.js",
     "db:migrate": "prisma migrate dev",
+    "db:migrate:deploy": "prisma migrate deploy",
     "db:seed": "prisma db seed",
     "db:studio": "prisma studio",
     "db:generate": "prisma generate"
