@@ -9,6 +9,9 @@ import {
   ChevronRight,
   CheckSquare,
   BarChart3,
+  CalendarDays,
+  Factory,
+  Repeat2,
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { useQueryClient } from '@tanstack/react-query';
@@ -40,6 +43,9 @@ export function Sidebar() {
         ...(isAdmin ? [
           { to: '/gestao-pontos', icon: ClipboardList, label: 'Gestão de Pontos', badge: 0, badgeType: 'normal' as const },
           { to: '/ponto/analytics', icon: BarChart3, label: 'Analytics de Ponto', badge: 0, badgeType: 'normal' as const },
+          { to: '/agenda-producao', icon: CalendarDays, label: 'Agenda de Produção', badge: 0, badgeType: 'normal' as const },
+          { to: '/gestao-operacional', icon: Factory, label: 'Gestão Operacional', badge: 0, badgeType: 'normal' as const },
+          { to: '/clientes-recorrentes', icon: Repeat2, label: 'Cliente Recorrente', badge: 0, badgeType: 'normal' as const },
         ] : []),
         { to: '/artes', icon: Palette, label: 'Artes / Gráfica', badge: artesAtivasCount, badgeType: 'normal' as const },
       ],

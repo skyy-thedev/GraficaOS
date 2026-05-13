@@ -69,6 +69,10 @@ import { CSS } from '@dnd-kit/utilities';
 import { format } from 'date-fns';
 import { API_BASE } from '@/services/api';
 
+function formatarMedidasCm(larguraCm: number, alturaCm: number): string {
+  return `${larguraCm}×${alturaCm}cm`;
+}
+
 // ===== Configurações =====
 const STATUS_CONFIG: Record<ArteStatus, { label: string; color: string }> = {
   TODO: { label: 'A Fazer', color: '#9ca3af' },
@@ -175,7 +179,7 @@ function SortableArteCard({
             <span>{PRODUTO_OPTIONS.find(p => p.value === arte.produto)?.label ?? arte.produto}</span>
             <span className="kanban-dot-sep">·</span>
             <span className="kanban-meta-mono">
-              {arte.largura}×{arte.altura}m
+              {formatarMedidasCm(arte.larguraCm, arte.alturaCm)}
             </span>
           </div>
 
@@ -304,8 +308,8 @@ function ArteFormModal({
     orcamentoNum: '',
     produto: 'BANNER' as ProdutoTipo,
     quantidade: 1,
-    largura: 0,
-    altura: 0,
+    larguraCm: 0,
+    alturaCm: 0,
     responsavelId: '',
     urgencia: 'NORMAL' as Urgencia,
     prazo: '',
@@ -323,8 +327,8 @@ function ArteFormModal({
         orcamentoNum: editArte.orcamentoNum,
         produto: editArte.produto,
         quantidade: editArte.quantidade,
-        largura: editArte.largura,
-        altura: editArte.altura,
+        larguraCm: editArte.larguraCm,
+        alturaCm: editArte.alturaCm,
         responsavelId: editArte.responsavelId ?? '',
         urgencia: editArte.urgencia,
         prazo: editArte.prazo ? (editArte.prazo.split('T')[0] ?? '') : '',
@@ -341,16 +345,19 @@ function ArteFormModal({
     const data: CreateArteRequest = {
       clienteNome: form.clienteNome,
       clienteNumero: form.clienteNumero,
-      orcamentoNum: form.orcamentoNum,
       produto: form.produto,
       quantidade: form.quantidade,
-      largura: form.largura,
-      altura: form.altura,
+      larguraCm: form.larguraCm,
+      alturaCm: form.alturaCm,
       responsavelId: form.responsavelId,
       urgencia: form.urgencia,
       prazo: form.prazo || undefined,
       observacoes: form.observacoes || undefined,
     };
+
+    if (editArte) {
+      data.orcamentoNum = form.orcamentoNum;
+    }
 
     if (editArte) {
       await updateArte.mutateAsync({ id: editArte.id, data });
@@ -398,13 +405,21 @@ function ArteFormModal({
 
             {/* Orçamento e Produto */}
             <div className="space-y-2">
-              <Label>Nº do Orçamento *</Label>
-              <Input
-                required
-                value={form.orcamentoNum}
-                onChange={(e) => setForm({ ...form, orcamentoNum: e.target.value })}
-                placeholder="ORC-001"
-              />
+              <Label>Nº do Orçamento {editArte ? '*' : ''}</Label>
+              {editArte ? (
+                <Input
+                  required
+                  value={form.orcamentoNum}
+                  onChange={(e) => setForm({ ...form, orcamentoNum: e.target.value })}
+                  placeholder="ORC-2026-001"
+                />
+              ) : (
+                <Input
+                  value="Gerado automaticamente ao salvar"
+                  disabled
+                  readOnly
+                />
+              )}
             </div>
             <div className="space-y-2">
               <Label>Tipo de Produto *</Label>
@@ -424,27 +439,27 @@ function ArteFormModal({
 
             {/* Medidas */}
             <div className="space-y-2">
-              <Label>Largura (m) *</Label>
+              <Label>Largura (cm) *</Label>
               <Input
                 required
                 type="number"
-                step="0.01"
-                min="0"
-                value={form.largura || ''}
-                onChange={(e) => setForm({ ...form, largura: parseFloat(e.target.value) || 0 })}
-                placeholder="0.00"
+                step="1"
+                min="1"
+                value={form.larguraCm || ''}
+                onChange={(e) => setForm({ ...form, larguraCm: parseInt(e.target.value, 10) || 0 })}
+                placeholder="100"
               />
             </div>
             <div className="space-y-2">
-              <Label>Altura (m) *</Label>
+              <Label>Altura (cm) *</Label>
               <Input
                 required
                 type="number"
-                step="0.01"
-                min="0"
-                value={form.altura || ''}
-                onChange={(e) => setForm({ ...form, altura: parseFloat(e.target.value) || 0 })}
-                placeholder="0.00"
+                step="1"
+                min="1"
+                value={form.alturaCm || ''}
+                onChange={(e) => setForm({ ...form, alturaCm: parseInt(e.target.value, 10) || 0 })}
+                placeholder="100"
               />
             </div>
 
@@ -627,7 +642,7 @@ function ArteDetailModal({
             <div className="space-y-1">
               <span className="text-muted-subtle">Medidas</span>
               <p className="text-primary font-medium font-mono">
-                {arte.largura} × {arte.altura}m
+                {arte.larguraCm} × {arte.alturaCm}cm
               </p>
             </div>
             <div className="space-y-1">

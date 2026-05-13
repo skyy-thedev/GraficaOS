@@ -123,8 +123,8 @@ export interface Arte {
   orcamentoNum: string;
   produto: ProdutoTipo;
   quantidade: number;
-  largura: number;
-  altura: number;
+  larguraCm: number;
+  alturaCm: number;
   responsavelId: string;
   responsavel: Pick<User, 'id' | 'name' | 'initials' | 'avatarColor'>;
   status: ArteStatus;
@@ -167,11 +167,11 @@ export interface UpdateUserRequest {
 export interface CreateArteRequest {
   clienteNome: string;
   clienteNumero: string;
-  orcamentoNum: string;
+  orcamentoNum?: string;
   produto: ProdutoTipo;
   quantidade?: number;
-  largura: number;
-  altura: number;
+  larguraCm: number;
+  alturaCm: number;
   responsavelId: string;
   urgencia?: Urgencia;
   prazo?: string;
@@ -184,8 +184,8 @@ export interface UpdateArteRequest {
   orcamentoNum?: string;
   produto?: ProdutoTipo;
   quantidade?: number;
-  largura?: number;
-  altura?: number;
+  larguraCm?: number;
+  alturaCm?: number;
   responsavelId?: string;
   urgencia?: Urgencia;
   prazo?: string | null;

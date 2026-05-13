@@ -70,8 +70,8 @@ model Arte {
   orcamentoNum  String
   produto       ProdutoTipo
   quantidade    Int         @default(1)
-  largura       Float
-  altura        Float
+  larguraCm     Int
+  alturaCm      Int
   responsavelId String
   responsavel   User        @relation("ArteResponsavel", fields: [responsavelId], references: [id])
   status        ArteStatus  @default(TODO)

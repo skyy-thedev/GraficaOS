@@ -216,6 +216,164 @@ interface MetricasPonto {
   frequenciaSemanal: { semana: string; presencas: number; total: number }[];
 }
 
+type UsuarioEscopo = {
+  id: string;
+  name: string;
+};
+
+type PontoCalendario = {
+  userId: string;
+  date: Date;
+  entrada: Date | null;
+  almoco: Date | null;
+  retorno: Date | null;
+  saida: Date | null;
+  status: 'NORMAL' | 'FOLGA' | 'FALTA';
+  encerramentoAutomatico: boolean;
+};
+
+function listarDatasPeriodo(startDate: string, endDate: string): string[] {
+  const datas: string[] = [];
+  let cursor = DateTime.fromISO(startDate, { zone: 'utc' }).startOf('day');
+  const end = DateTime.fromISO(endDate, { zone: 'utc' }).startOf('day');
+
+  while (cursor <= end) {
+    datas.push(cursor.toISODate()!);
+    cursor = cursor.plus({ days: 1 });
+  }
+
+  return datas;
+}
+
+function getHojeDateKeySP(): string {
+  return DateTime.now().setZone('America/Sao_Paulo').toISODate()!;
+}
+
+function limitarDataFinalAoHoje(endDate: string): string {
+  const hoje = getHojeDateKeySP();
+  return endDate < hoje ? endDate : hoje;
+}
+
+function getDateOnlyKey(date: Date): string {
+  return parseDateOnly(date).toISODate()!;
+}
+
+function getDiaSemanaDateKey(dateKey: string): number {
+  return DateTime.fromISO(dateKey, { zone: 'utc' }).weekday % 7;
+}
+
+function isDiaUtilDateKey(dateKey: string): boolean {
+  const diaSemana = getDiaSemanaDateKey(dateKey);
+  return diaSemana !== 0 && diaSemana !== 6;
+}
+
+function getWeekLabelFromDateKey(dateKey: string): string {
+  return DateTime.fromISO(dateKey, { zone: 'utc' }).startOf('week').toFormat('dd/MM');
+}
+
+function buildPontoMap<T extends { userId: string; date: Date }>(pontos: T[]): Map<string, T> {
+  return new Map(pontos.map((ponto) => [`${ponto.userId}:${getDateOnlyKey(new Date(ponto.date))}`, ponto]));
+}
+
+async function carregarUsuariosEscopo(filterUserId?: string): Promise<UsuarioEscopo[]> {
+  if (filterUserId) {
+    const user = await prisma.user.findUnique({
+      where: { id: filterUserId },
+      select: { id: true, name: true },
+    });
+
+    return user ? [user] : [];
+  }
+
+  return prisma.user.findMany({
+    where: { active: true },
+    select: { id: true, name: true },
+    orderBy: { name: 'asc' },
+  });
+}
+
+async function carregarFolgasPorUsuario(userIds: string[]): Promise<Map<string, Set<number>>> {
+  const folgaMap = new Map<string, Set<number>>();
+
+  if (userIds.length === 0) {
+    return folgaMap;
+  }
+
+  const folgas = await prisma.folgaConfig.findMany({
+    where: { userId: { in: userIds } },
+    select: { userId: true, diaSemana: true },
+  });
+
+  for (const userId of userIds) {
+    folgaMap.set(userId, new Set<number>());
+  }
+
+  for (const folga of folgas) {
+    folgaMap.get(folga.userId)?.add(folga.diaSemana);
+  }
+
+  return folgaMap;
+}
+
+function isDiaEsperadoParaTrabalho(params: {
+  dateKey: string;
+  folgaDiasSemana: Set<number>;
+  ponto?: { status: 'NORMAL' | 'FOLGA' | 'FALTA' } | null;
+}): boolean {
+  const { dateKey, folgaDiasSemana, ponto } = params;
+
+  if (!isDiaUtilDateKey(dateKey)) return false;
+  if (folgaDiasSemana.has(getDiaSemanaDateKey(dateKey))) return false;
+  if (ponto?.status === 'FOLGA') return false;
+
+  return true;
+}
+
+function calcularStreaksEsperados(params: {
+  userId: string;
+  datasPeriodo: string[];
+  pontoMap: Map<string, PontoCalendario>;
+  folgaDiasSemana: Set<number>;
+}): { streakAtual: number; maiorStreak: number } {
+  const hoje = DateTime.now().setZone('America/Sao_Paulo').toISODate()!;
+  const datasRelevantes = params.datasPeriodo
+    .filter((dateKey) => dateKey <= hoje)
+    .filter((dateKey) => {
+      const ponto = params.pontoMap.get(`${params.userId}:${dateKey}`);
+      return isDiaEsperadoParaTrabalho({ dateKey, folgaDiasSemana: params.folgaDiasSemana, ponto });
+    })
+    .sort((a, b) => b.localeCompare(a));
+
+  let streakAtual = 0;
+  let maiorStreak = 0;
+  let currentRun = 0;
+  let contandoAtual = true;
+
+  for (const dateKey of datasRelevantes) {
+    const ponto = params.pontoMap.get(`${params.userId}:${dateKey}`);
+    const presente = !!ponto?.entrada;
+
+    if (presente) {
+      currentRun++;
+      if (contandoAtual) {
+        streakAtual++;
+      }
+    } else {
+      contandoAtual = false;
+      if (currentRun > maiorStreak) {
+        maiorStreak = currentRun;
+      }
+      currentRun = 0;
+    }
+  }
+
+  if (currentRun > maiorStreak) {
+    maiorStreak = currentRun;
+  }
+
+  return { streakAtual, maiorStreak };
+}
+
 /** Calcula métricas agregadas para o período */
 export async function getMetricas(params: {
   userId?: string;
@@ -225,15 +383,21 @@ export async function getMetricas(params: {
   requestUserRole: string;
 }): Promise<MetricasPonto> {
   const { userId, startDate, endDate, requestUserId, requestUserRole } = params;
+  const endDateLimitado = limitarDataFinalAoHoje(endDate);
 
   const filterUserId = requestUserRole === 'ADMIN'
     ? (userId ?? undefined)
     : requestUserId;
 
+  const usuariosEscopo = await carregarUsuariosEscopo(filterUserId);
+  const userIds = usuariosEscopo.map((user) => user.id);
+  const folgaMap = await carregarFolgasPorUsuario(userIds);
+  const datasPeriodo = startDate <= endDateLimitado ? listarDatasPeriodo(startDate, endDateLimitado) : [];
+
   const pontos = await prisma.ponto.findMany({
     where: {
-      ...(filterUserId ? { userId: filterUserId } : {}),
-      date: { gte: new Date(startDate), lte: new Date(endDate) },
+      ...(userIds.length > 0 ? { userId: { in: userIds } } : { userId: '__no-user__' }),
+      date: { gte: new Date(startDate), lte: new Date(endDateLimitado) },
     },
     include: {
       user: { select: { id: true, name: true } },
@@ -241,33 +405,76 @@ export async function getMetricas(params: {
     orderBy: { date: 'asc' },
   });
 
-  // Dias úteis no período (seg-sex)
-  const start = new Date(startDate);
-  const end = new Date(endDate);
+  const pontoMap = buildPontoMap(pontos as PontoCalendario[]);
+
   let totalDias = 0;
-  const cursor = new Date(start);
-  while (cursor <= end) {
-    const day = cursor.getDay();
-    if (day !== 0 && day !== 6) totalDias++;
-    cursor.setDate(cursor.getDate() + 1);
+  let diasTrabalhados = 0;
+  let diasFalta = 0;
+  const weekMap = new Map<string, { presencas: number; total: number }>();
+
+  for (const user of usuariosEscopo) {
+    const folgaDiasSemana = folgaMap.get(user.id) ?? new Set<number>();
+
+    for (const dateKey of datasPeriodo) {
+      const ponto = pontoMap.get(`${user.id}:${dateKey}`);
+      if (!isDiaEsperadoParaTrabalho({ dateKey, folgaDiasSemana, ponto })) {
+        continue;
+      }
+
+      totalDias++;
+
+      const weekLabel = getWeekLabelFromDateKey(dateKey);
+      if (!weekMap.has(weekLabel)) {
+        weekMap.set(weekLabel, { presencas: 0, total: 0 });
+      }
+
+      const week = weekMap.get(weekLabel)!;
+      week.total++;
+
+      if (ponto?.entrada) {
+        diasTrabalhados++;
+        week.presencas++;
+      } else {
+        diasFalta++;
+      }
+    }
   }
 
-  const diasTrabalhados = pontos.filter((p) => p.entrada !== null).length;
-  const diasFalta = Math.max(0, totalDias - diasTrabalhados);
   const percentualPresenca = totalDias > 0 ? Math.round((diasTrabalhados / totalDias) * 100) : 0;
 
   // Horas trabalhadas
   let totalMinutos = 0;
-  const horasPorDia: { data: string; horas: number }[] = [];
+  const horasPorDiaMap = new Map<string, number>();
+  let diasPontuais = 0;
+  let encerramentosAutomaticos = 0;
+
+  const [pontualH, pontualM] = env.HORARIO_ENTRADA_PONTUAL.split(':').map(Number) as [number, number];
 
   for (const ponto of pontos) {
     const mins = calcularMinutos(ponto);
     totalMinutos += mins;
-    horasPorDia.push({
-      data: formatarDateOnlyCurtaBR(new Date(ponto.date)),
-      horas: Math.round((mins / 60) * 100) / 100,
-    });
+
+    const dateKey = getDateOnlyKey(new Date(ponto.date));
+    horasPorDiaMap.set(dateKey, (horasPorDiaMap.get(dateKey) ?? 0) + mins);
+
+    if (ponto.entrada) {
+      const { hora: entradaH, minuto: entradaM } = getHoraMinutoSP(new Date(ponto.entrada));
+      if (entradaH < pontualH || (entradaH === pontualH && entradaM <= pontualM)) {
+        diasPontuais++;
+      }
+    }
+
+    if (ponto.encerramentoAutomatico) {
+      encerramentosAutomaticos++;
+    }
   }
+
+  const horasPorDia = Array.from(horasPorDiaMap.entries())
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([dateKey, minutos]) => ({
+      data: DateTime.fromISO(dateKey, { zone: 'utc' }).toFormat('dd/MM'),
+      horas: Math.round((minutos / 60) * 100) / 100,
+    }));
 
   const totalH = Math.floor(totalMinutos / 60);
   const totalM = totalMinutos % 60;
@@ -277,41 +484,16 @@ export async function getMetricas(params: {
   const mediaH = Math.floor(mediaMinutosPorDia / 60);
   const mediaM = mediaMinutosPorDia % 60;
   const mediaHorasPorDia = `${mediaH}h${mediaM.toString().padStart(2, '0')}m`;
-
-  // Pontualidade (entrada antes do horário pontual)
-  const [pontualH, pontualM] = env.HORARIO_ENTRADA_PONTUAL.split(':').map(Number) as [number, number];
-  let diasPontuais = 0;
-  for (const ponto of pontos) {
-    if (ponto.entrada) {
-      // Extrair hora no fuso do Brasil usando Luxon
-      const { hora: entradaH, minuto: entradaM } = getHoraMinutoSP(new Date(ponto.entrada));
-      if (entradaH < pontualH || (entradaH === pontualH && entradaM <= pontualM)) {
-        diasPontuais++;
-      }
-    }
-  }
   const percentualPontualidade = diasTrabalhados > 0 ? Math.round((diasPontuais / diasTrabalhados) * 100) : 0;
 
-  // Streak — dias consecutivos de trabalho até hoje (percorre de trás pra frente)
-  const { streakAtual, maiorStreak } = calcularStreaks(pontos);
-
-  // Encerramentos automáticos
-  const encerramentosAutomaticos = pontos.filter((p) => p.encerramentoAutomatico).length;
-
-  // Frequência semanal
-  const weekMap = new Map<string, { presencas: number; total: number }>();
-  for (const ponto of pontos) {
-    const dt = parseDateOnly(new Date(ponto.date));
-    const weekStart = dt.startOf('week'); // Luxon: week starts Monday
-    const weekLabel = weekStart.toFormat('dd/MM');
-
-    if (!weekMap.has(weekLabel)) {
-      weekMap.set(weekLabel, { presencas: 0, total: 0 });
-    }
-    const week = weekMap.get(weekLabel)!;
-    week.total++;
-    if (ponto.entrada) week.presencas++;
-  }
+  const { streakAtual, maiorStreak } = usuariosEscopo.length === 1
+    ? calcularStreaksEsperados({
+      userId: usuariosEscopo[0]!.id,
+      datasPeriodo,
+      pontoMap: pontoMap as Map<string, PontoCalendario>,
+      folgaDiasSemana: folgaMap.get(usuariosEscopo[0]!.id) ?? new Set<number>(),
+    })
+    : { streakAtual: 0, maiorStreak: 0 };
 
   const frequenciaSemanal = Array.from(weekMap.entries()).map(([semana, data]) => ({
     semana,
@@ -319,7 +501,7 @@ export async function getMetricas(params: {
   }));
 
   return {
-    periodo: { inicio: startDate, fim: endDate },
+    periodo: { inicio: startDate, fim: endDateLimitado },
     totalDias,
     diasTrabalhados,
     diasFalta,
@@ -345,32 +527,6 @@ function calcularMinutos(ponto: { entrada: Date | null; almoco: Date | null; ret
     totalMs -= ponto.retorno.getTime() - ponto.almoco.getTime();
   }
   return Math.max(0, Math.floor(totalMs / 60000));
-}
-
-/** Calcula streak atual e maior streak */
-function calcularStreaks(pontos: { entrada: Date | null; date: Date }[]) {
-  // Ordenar do mais recente ao mais antigo
-  const sorted = [...pontos].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-
-  let streakAtual = 0;
-  let contandoAtual = true;
-  let maiorStreak = 0;
-  let currentRun = 0;
-
-  for (const ponto of sorted) {
-    if (ponto.entrada) {
-      if (contandoAtual) streakAtual++;
-      currentRun++;
-    } else {
-      contandoAtual = false;
-      if (currentRun > maiorStreak) maiorStreak = currentRun;
-      currentRun = 0;
-    }
-  }
-  if (currentRun > maiorStreak) maiorStreak = currentRun;
-  if (streakAtual > maiorStreak) maiorStreak = streakAtual;
-
-  return { streakAtual, maiorStreak };
 }
 
 // ===== Exportações =====
@@ -960,31 +1116,27 @@ export async function getInsights(params: {
   endDate: string;
 }): Promise<InsightsPeriodo> {
   const { startDate, endDate } = params;
+  const endDateLimitado = limitarDataFinalAoHoje(endDate);
+
+  const users = await prisma.user.findMany({ where: { active: true }, select: { id: true, name: true } });
+  const userIds = users.map((user) => user.id);
+  const folgaMap = await carregarFolgasPorUsuario(userIds);
+  const datasPeriodo = startDate <= endDateLimitado ? listarDatasPeriodo(startDate, endDateLimitado) : [];
 
   const pontos = await prisma.ponto.findMany({
     where: {
-      date: { gte: new Date(startDate), lte: new Date(endDate) },
+      ...(userIds.length > 0 ? { userId: { in: userIds } } : { userId: '__no-user__' }),
+      date: { gte: new Date(startDate), lte: new Date(endDateLimitado) },
     },
     include: { user: { select: { id: true, name: true } } },
     orderBy: { date: 'asc' },
   });
-
-  const users = await prisma.user.findMany({ where: { active: true }, select: { id: true, name: true } });
-
-  // Dias úteis no período
-  const start = new Date(startDate);
-  const end = new Date(endDate);
-  let totalDiasUteis = 0;
-  const cursor = new Date(start);
-  while (cursor <= end) {
-    const day = cursor.getDay();
-    if (day !== 0 && day !== 6) totalDiasUteis++;
-    cursor.setDate(cursor.getDate() + 1);
-  }
+  const pontoMap = buildPontoMap(pontos as PontoCalendario[]);
 
   // Dados por funcionário
   const porFunc = new Map<string, {
     nome: string;
+    diasEsperados: number;
     diasPresente: number;
     diasPontual: number;
     totalMinutos: number;
@@ -993,18 +1145,41 @@ export async function getInsights(params: {
 
   const [pontualH, pontualM] = env.HORARIO_ENTRADA_PONTUAL.split(':').map(Number) as [number, number];
 
-  for (const ponto of pontos) {
-    const uid = ponto.userId;
-    if (!porFunc.has(uid)) {
-      porFunc.set(uid, { nome: ponto.user.name, diasPresente: 0, diasPontual: 0, totalMinutos: 0, encAuto: 0 });
+  for (const user of users) {
+    porFunc.set(user.id, {
+      nome: user.name,
+      diasEsperados: 0,
+      diasPresente: 0,
+      diasPontual: 0,
+      totalMinutos: 0,
+      encAuto: 0,
+    });
+  }
+
+  for (const user of users) {
+    const folgaDiasSemana = folgaMap.get(user.id) ?? new Set<number>();
+    const f = porFunc.get(user.id)!;
+
+    for (const dateKey of datasPeriodo) {
+      const ponto = pontoMap.get(`${user.id}:${dateKey}`);
+      if (!isDiaEsperadoParaTrabalho({ dateKey, folgaDiasSemana, ponto })) {
+        continue;
+      }
+
+      f.diasEsperados++;
+      if (ponto?.entrada) {
+        f.diasPresente++;
+      }
     }
-    const f = porFunc.get(uid)!;
+  }
+
+  for (const ponto of pontos) {
+    const f = porFunc.get(ponto.userId);
+    if (!f) continue;
 
     if (ponto.entrada) {
-      f.diasPresente++;
       f.totalMinutos += calcularMinutos(ponto);
 
-      // Pontualidade
       const { hora, minuto } = getHoraMinutoSP(new Date(ponto.entrada));
       if (hora < pontualH || (hora === pontualH && minuto <= pontualM)) {
         f.diasPontual++;
@@ -1017,9 +1192,8 @@ export async function getInsights(params: {
   const recomendacoes: string[] = [];
 
   // Métricas gerais
-  const totalPresencas = pontos.filter(p => p.entrada).length;
-  const totalFuncionarios = users.length;
-  const esperadoTotal = totalDiasUteis * totalFuncionarios;
+  const totalPresencas = Array.from(porFunc.values()).reduce((sum, f) => sum + f.diasPresente, 0);
+  const esperadoTotal = Array.from(porFunc.values()).reduce((sum, f) => sum + f.diasEsperados, 0);
   const presencaGeral = esperadoTotal > 0 ? Math.round((totalPresencas / esperadoTotal) * 100) : 0;
 
   if (presencaGeral >= 90) {
@@ -1063,7 +1237,7 @@ export async function getInsights(params: {
   let maisHorasMin = 0;
 
   for (const [, f] of porFunc) {
-    const pctPresenca = totalDiasUteis > 0 ? Math.round((f.diasPresente / totalDiasUteis) * 100) : 0;
+    const pctPresenca = f.diasEsperados > 0 ? Math.round((f.diasPresente / f.diasEsperados) * 100) : 0;
     const pctPontual = f.diasPresente > 0 ? Math.round((f.diasPontual / f.diasPresente) * 100) : 0;
 
     if (!melhorPresenca || pctPresenca > melhorPresenca.percentual) {
@@ -1117,7 +1291,7 @@ export async function getInsights(params: {
   }
 
   return {
-    periodo: { inicio: startDate, fim: endDate },
+    periodo: { inicio: startDate, fim: endDateLimitado },
     destaques,
     funcionarioDestaque: { melhorPresenca, melhorPontualidade, maisHoras },
     recomendacoes,

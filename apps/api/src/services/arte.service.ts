@@ -1,15 +1,16 @@
 import { prisma } from '../prisma/client';
 import fs from 'fs';
 import path from 'path';
+import { DateTime } from 'luxon';
 
 interface CreateArteInput {
   clienteNome: string;
   clienteNumero: string;
-  orcamentoNum: string;
+  orcamentoNum?: string;
   produto: 'AZULEJO' | 'BANNER' | 'ADESIVO' | 'PLACA' | 'FAIXA' | 'OUTRO';
   quantidade?: number;
-  largura: number;
-  altura: number;
+  larguraCm: number;
+  alturaCm: number;
   responsavelId: string;
   urgencia?: 'LOW' | 'NORMAL' | 'HIGH';
   prazo?: string;
@@ -22,8 +23,8 @@ interface UpdateArteInput {
   orcamentoNum?: string;
   produto?: 'AZULEJO' | 'BANNER' | 'ADESIVO' | 'PLACA' | 'FAIXA' | 'OUTRO';
   quantidade?: number;
-  largura?: number;
-  altura?: number;
+  larguraCm?: number;
+  alturaCm?: number;
   responsavelId?: string;
   urgencia?: 'LOW' | 'NORMAL' | 'HIGH';
   prazo?: string | null;
@@ -42,6 +43,28 @@ async function gerarCodigoArte(): Promise<string> {
   const ultimoNumero = parseInt(ultimaArte.codigo.replace('ART-', ''), 10);
   const novoNumero = (isNaN(ultimoNumero) ? 0 : ultimoNumero) + 1;
   return `ART-${novoNumero.toString().padStart(3, '0')}`;
+}
+
+async function gerarNumeroOrcamento(): Promise<string> {
+  const anoAtual = DateTime.now().setZone('America/Sao_Paulo').year;
+  const prefixo = `ORC-${anoAtual}-`;
+
+  const orcamentos = await prisma.arte.findMany({
+    where: {
+      orcamentoNum: {
+        startsWith: prefixo,
+      },
+    },
+    select: { orcamentoNum: true },
+  });
+
+  const maiorNumero = orcamentos.reduce((maior, arte) => {
+    const match = arte.orcamentoNum.match(new RegExp(`^${prefixo}(\\d+)$`));
+    const numero = match?.[1] ? parseInt(match[1], 10) : 0;
+    return Number.isNaN(numero) ? maior : Math.max(maior, numero);
+  }, 0);
+
+  return `${prefixo}${String(maiorNumero + 1).padStart(3, '0')}`;
 }
 
 /** Lista todas as artes (ADMIN) ou apenas as do usuário (EMPLOYEE) */
@@ -66,6 +89,7 @@ export async function createArte(data: CreateArteInput) {
 
   for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
     const codigo = await gerarCodigoArte();
+    const orcamentoNum = data.orcamentoNum?.trim() || await gerarNumeroOrcamento();
 
     try {
       return await prisma.arte.create({
@@ -73,11 +97,11 @@ export async function createArte(data: CreateArteInput) {
           codigo,
           clienteNome: data.clienteNome,
           clienteNumero: data.clienteNumero,
-          orcamentoNum: data.orcamentoNum,
+          orcamentoNum,
           produto: data.produto,
           quantidade: data.quantidade ?? 1,
-          largura: data.largura,
-          altura: data.altura,
+          larguraCm: data.larguraCm,
+          alturaCm: data.alturaCm,
           responsavelId: data.responsavelId,
           urgencia: data.urgencia ?? 'NORMAL',
           prazo: data.prazo ? new Date(data.prazo) : null,
@@ -114,8 +138,8 @@ export async function updateArte(id: string, data: UpdateArteInput) {
   if (data.orcamentoNum !== undefined) updateData.orcamentoNum = data.orcamentoNum;
   if (data.produto !== undefined) updateData.produto = data.produto;
   if (data.quantidade !== undefined) updateData.quantidade = data.quantidade;
-  if (data.largura !== undefined) updateData.largura = data.largura;
-  if (data.altura !== undefined) updateData.altura = data.altura;
+  if (data.larguraCm !== undefined) updateData.larguraCm = data.larguraCm;
+  if (data.alturaCm !== undefined) updateData.alturaCm = data.alturaCm;
   if (data.responsavelId !== undefined) updateData.responsavelId = data.responsavelId;
   if (data.urgencia !== undefined) updateData.urgencia = data.urgencia;
   if (data.prazo !== undefined) updateData.prazo = data.prazo ? new Date(data.prazo) : null;

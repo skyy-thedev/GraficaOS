@@ -10,7 +10,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import * as Dialog from '@radix-ui/react-dialog';
-import { usePontoMetricas, useRelatorio, useExportarPonto, useAnomalias, useInsights, useEditarPonto } from '@/hooks/usePonto';
+import { usePontoMetricas, useRelatorio, useExportarPonto, useAnomalias, useInsights, useEditarPonto, useFolgas } from '@/hooks/usePonto';
 import { useUsers } from '@/hooks/useUsers';
 import {
   Clock,
@@ -51,7 +51,69 @@ import {
   Area,
   AreaChart,
 } from 'recharts';
-import type { Ponto, Anomalia, PontoStatus } from '@/types';
+import type { Ponto, Anomalia, PontoStatus, MetricasPonto } from '@/types';
+
+function getPercentualSemanal(presencas: number, total: number): number {
+  if (total <= 0) return 0;
+  return Math.round((presencas / total) * 100);
+}
+
+function listarDatasNoPeriodo(start: string, end: string): string[] {
+  const datas: string[] = [];
+  const cursor = new Date(`${start}T00:00:00`);
+  const dataFinal = new Date(`${end}T00:00:00`);
+
+  while (cursor <= dataFinal) {
+    datas.push(cursor.toISOString().slice(0, 10));
+    cursor.setDate(cursor.getDate() + 1);
+  }
+
+  return datas;
+}
+
+function limitarDataFinalAoHoje(end: string): string {
+  const hoje = format(new Date(), 'yyyy-MM-dd');
+  return end < hoje ? end : hoje;
+}
+
+function getDiaSemana(dateKey: string): number {
+  return new Date(`${dateKey}T00:00:00`).getDay();
+}
+
+function formatarPercentual(value: number): string {
+  return `${Math.round(value)}%`;
+}
+
+function FrequenciaSemanalTooltip({ active, payload, label }: {
+  active?: boolean;
+  payload?: Array<{ dataKey?: string; value?: number; payload?: { presencas: number; total: number; percentual: number } }>;
+  label?: string;
+}) {
+  if (!active || !payload?.length) return null;
+
+  const base = payload[0]?.payload;
+  if (!base) return null;
+
+  return (
+    <div style={{ background: '#1a1a24', border: '1px solid #2a2a38', borderRadius: 12, color: '#fff', fontSize: 12, padding: '12px 14px', minWidth: 180 }}>
+      <div style={{ fontWeight: 700, marginBottom: 8 }}>{label}</div>
+      <div style={{ display: 'grid', gap: 6 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
+          <span style={{ color: '#22d3a0' }}>Presenças registradas</span>
+          <strong style={{ color: '#22d3a0' }}>{base.presencas}</strong>
+        </div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
+          <span style={{ color: '#8b7cff' }}>Jornadas esperadas</span>
+          <strong style={{ color: '#8b7cff' }}>{base.total}</strong>
+        </div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
+          <span style={{ color: '#cfd3ff' }}>Presença da semana</span>
+          <strong>{base.percentual}%</strong>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 // Helpers
 function calcularHoras(ponto: Ponto): string | null {
@@ -121,6 +183,7 @@ function getDateRange(preset: PeriodoPreset): { start: string; end: string } {
 export function PontoAnalyticsPage() {
   const { isAdmin } = useAuth();
   const { data: users } = useUsers();
+  const { data: folgasData } = useFolgas();
   const activeUsers = users?.filter((u) => u.active) ?? [];
 
   const [periodo, setPeriodo] = useState<PeriodoPreset>('mes');
@@ -249,6 +312,172 @@ export function PontoAnalyticsPage() {
       .sort((a, b) => b.minutos - a.minutos);
   }, [pontos]);
 
+  const frequenciaSemanalData = useMemo(() => {
+    if (!metricas) return [];
+
+    return metricas.frequenciaSemanal.map((item) => ({
+      ...item,
+      percentual: getPercentualSemanal(item.presencas, item.total),
+    }));
+  }, [metricas]);
+
+  const resumoFrequenciaSemanal = useMemo(() => {
+    if (!frequenciaSemanalData.length) return null;
+
+    const melhorSemana = frequenciaSemanalData.reduce((melhor, atual) =>
+      atual.percentual > melhor.percentual ? atual : melhor,
+    );
+    const mediaPercentual = Math.round(
+      frequenciaSemanalData.reduce((soma, item) => soma + item.percentual, 0) / frequenciaSemanalData.length,
+    );
+
+    return { melhorSemana, mediaPercentual };
+  }, [frequenciaSemanalData]);
+
+  const rankingFuncionarios = useMemo(() => {
+    const usuariosEscopo = filterUserId === 'all'
+      ? activeUsers
+      : activeUsers.filter((user) => user.id === filterUserId);
+
+    if (!usuariosEscopo.length) return [];
+
+    const pontosDoPeriodo = pontos ?? [];
+    const endDateLimitado = limitarDataFinalAoHoje(dateRange.end);
+    const datasPeriodo = dateRange.start <= endDateLimitado ? listarDatasNoPeriodo(dateRange.start, endDateLimitado) : [];
+    const pontoMap = new Map(pontosDoPeriodo.map((ponto) => [`${ponto.userId}:${ponto.date.slice(0, 10)}`, ponto]));
+    const folgasPorUsuario = new Map<string, Set<number>>();
+
+    for (const user of usuariosEscopo) {
+      folgasPorUsuario.set(user.id, new Set((folgasData ?? []).filter((folga) => folga.userId === user.id).map((folga) => folga.diaSemana)));
+    }
+
+    return usuariosEscopo
+      .map((user) => {
+        const folgasUsuario = folgasPorUsuario.get(user.id) ?? new Set<number>();
+        let diasEsperados = 0;
+        let diasPresente = 0;
+        let diasPontuais = 0;
+        let faltas = 0;
+        let encerramentosAutomaticos = 0;
+        let minutosTotais = 0;
+
+        for (const dateKey of datasPeriodo) {
+          const diaSemana = getDiaSemana(dateKey);
+          const ponto = pontoMap.get(`${user.id}:${dateKey}`);
+          const ehDiaUtil = diaSemana !== 0 && diaSemana !== 6;
+          const ehFolgaConfigurada = folgasUsuario.has(diaSemana);
+          const ehFolgaManual = ponto?.status === 'FOLGA';
+
+          if (!ehDiaUtil || ehFolgaConfigurada || ehFolgaManual) {
+            continue;
+          }
+
+          diasEsperados++;
+
+          if (ponto?.entrada) {
+            diasPresente++;
+
+            const entrada = new Date(ponto.entrada);
+            const hora = entrada.getHours();
+            const minuto = entrada.getMinutes();
+            if (hora < 10 || (hora === 10 && minuto <= 15)) {
+              diasPontuais++;
+            }
+
+            if (ponto.saida) {
+              let totalMs = new Date(ponto.saida).getTime() - new Date(ponto.entrada).getTime();
+              if (ponto.almoco && ponto.retorno) {
+                totalMs -= new Date(ponto.retorno).getTime() - new Date(ponto.almoco).getTime();
+              }
+              minutosTotais += Math.max(0, Math.floor(totalMs / 60000));
+            }
+          } else {
+            faltas++;
+          }
+
+          if (ponto?.encerramentoAutomatico) {
+            encerramentosAutomaticos++;
+          }
+        }
+
+        const percentualPresenca = diasEsperados > 0 ? Math.round((diasPresente / diasEsperados) * 100) : 0;
+        const percentualPontualidade = diasPresente > 0 ? Math.round((diasPontuais / diasPresente) * 100) : 0;
+        const horasTotais = `${Math.floor(minutosTotais / 60)}h${String(minutosTotais % 60).padStart(2, '0')}m`;
+        const score = percentualPresenca * 1000 + percentualPontualidade * 10 - faltas * 5 - encerramentosAutomaticos * 3;
+
+        return {
+          id: user.id,
+          nome: user.name,
+          initials: user.initials,
+          avatarColor: user.avatarColor,
+          diasEsperados,
+          diasPresente,
+          faltas,
+          percentualPresenca,
+          percentualPontualidade,
+          encerramentosAutomaticos,
+          horasTotais,
+          score,
+        };
+      })
+      .sort((a, b) => b.score - a.score || b.percentualPresenca - a.percentualPresenca || b.percentualPontualidade - a.percentualPontualidade || a.faltas - b.faltas)
+      .map((item, index) => ({ ...item, posicao: index + 1 }));
+  }, [activeUsers, filterUserId, pontos, folgasData, dateRange.start, dateRange.end]);
+
+  const alertasGerenciais = useMemo(() => {
+    const alertas: Array<{ id: string; titulo: string; descricao: string; tipo: 'danger' | 'warning' | 'info' }> = [];
+
+    if (metricas && metricas.percentualPresenca < 75) {
+      alertas.push({
+        id: 'presenca-baixa',
+        titulo: 'Presença geral abaixo do ideal',
+        descricao: `O período está com ${metricas.percentualPresenca}% de presença. Vale revisar faltas recentes e escala da equipe.`,
+        tipo: 'danger',
+      });
+    }
+
+    if (metricas && metricas.encerramentosAutomaticos >= 3) {
+      alertas.push({
+        id: 'encerramentos-auto',
+        titulo: 'Muitos encerramentos automáticos',
+        descricao: `${metricas.encerramentosAutomaticos} ponto(s) foram encerrados automaticamente no período.`,
+        tipo: 'warning',
+      });
+    }
+
+    const faltosos = rankingFuncionarios.filter((funcionario) => funcionario.faltas > 0);
+    if (faltosos.length > 0) {
+      const top = faltosos[0]!;
+      alertas.push({
+        id: 'faltas-funcionario',
+        titulo: 'Funcionário com faltas registradas',
+        descricao: `${top.nome} acumula ${top.faltas} falta(s) no período analisado.`,
+        tipo: top.faltas >= 2 ? 'danger' : 'warning',
+      });
+    }
+
+    const baixaPontualidade = rankingFuncionarios.find((funcionario) => funcionario.diasPresente >= 2 && funcionario.percentualPontualidade < 70);
+    if (baixaPontualidade) {
+      alertas.push({
+        id: 'pontualidade-baixa',
+        titulo: 'Pontualidade em atenção',
+        descricao: `${baixaPontualidade.nome} está com ${baixaPontualidade.percentualPontualidade}% de pontualidade no período.`,
+        tipo: 'warning',
+      });
+    }
+
+    if ((anomalias?.length ?? 0) > 0) {
+      alertas.push({
+        id: 'anomalias-detectadas',
+        titulo: 'Anomalias detectadas nos registros',
+        descricao: `${anomalias!.length} anomalia(s) exigem revisão administrativa.`,
+        tipo: 'info',
+      });
+    }
+
+    return alertas.slice(0, 4);
+  }, [metricas, rankingFuncionarios, anomalias]);
+
   // Guard: redireciona se não for admin (depois de todos os hooks)
   if (!isAdmin) return <Navigate to="/" replace />;
 
@@ -348,6 +577,119 @@ export function PontoAnalyticsPage() {
             </div>
           </div>
         ) : null}
+
+        {alertasGerenciais.length > 0 && (
+          <Card>
+            <CardHeader>
+              <div className="pa-chart-header">
+                <AlertCircle size={16} />
+                <CardTitle className="text-sm section-title">ALERTAS GERENCIAIS</CardTitle>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 12 }}>
+                {alertasGerenciais.map((alerta) => {
+                  const colors = alerta.tipo === 'danger'
+                    ? { bg: 'var(--red-dim)', color: 'var(--red)', border: 'var(--red)' }
+                    : alerta.tipo === 'warning'
+                      ? { bg: 'var(--yellow-dim)', color: 'var(--yellow)', border: 'var(--yellow)' }
+                      : { bg: 'var(--blue-dim)', color: 'var(--blue)', border: 'var(--blue)' };
+
+                  return (
+                    <div
+                      key={alerta.id}
+                      style={{
+                        padding: 12,
+                        borderRadius: 10,
+                        background: colors.bg,
+                        border: `1px solid ${colors.border}`,
+                      }}
+                    >
+                      <div style={{ fontSize: 13, fontWeight: 700, color: colors.color, marginBottom: 6 }}>{alerta.titulo}</div>
+                      <div style={{ fontSize: 12, color: 'var(--text1)', lineHeight: 1.45 }}>{alerta.descricao}</div>
+                    </div>
+                  );
+                })}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {rankingFuncionarios.length > 0 && (
+          <Card>
+            <CardHeader>
+              <div className="pa-chart-header">
+                <Award size={16} />
+                <CardTitle className="text-sm section-title">RANKING GERENCIAL POR FUNCIONÁRIO</CardTitle>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {rankingFuncionarios.map((funcionario) => {
+                  const medalha = funcionario.posicao === 1 ? '🥇' : funcionario.posicao === 2 ? '🥈' : funcionario.posicao === 3 ? '🥉' : '•';
+                  return (
+                    <div
+                      key={funcionario.id}
+                      style={{
+                        display: 'grid',
+                        gridTemplateColumns: 'minmax(220px, 1.6fr) repeat(5, minmax(90px, 1fr))',
+                        gap: 12,
+                        alignItems: 'center',
+                        padding: '12px 14px',
+                        borderRadius: 12,
+                        background: 'var(--bg3)',
+                        border: '1px solid var(--border2)',
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+                        <span style={{ fontSize: 18, width: 24, textAlign: 'center' }}>{medalha}</span>
+                        <div
+                          className="bg-dynamic flex h-8 w-8 items-center justify-center rounded-full text-12 font-bold text-white shrink-0"
+                          data-color={funcionario.avatarColor}
+                        >
+                          {funcionario.initials}
+                        </div>
+                        <div style={{ minWidth: 0 }}>
+                          <div style={{ color: 'var(--text1)', fontWeight: 700, fontSize: 13, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            {funcionario.posicao}º · {funcionario.nome}
+                          </div>
+                          <div style={{ color: 'var(--text2)', fontSize: 11 }}>
+                            {funcionario.diasPresente}/{funcionario.diasEsperados} jornadas registradas
+                          </div>
+                        </div>
+                      </div>
+
+                      <div>
+                        <div style={{ color: 'var(--text2)', fontSize: 10, marginBottom: 2 }}>Presença</div>
+                        <div style={{ color: 'var(--green)', fontWeight: 700 }}>{formatarPercentual(funcionario.percentualPresenca)}</div>
+                      </div>
+
+                      <div>
+                        <div style={{ color: 'var(--text2)', fontSize: 10, marginBottom: 2 }}>Pontualidade</div>
+                        <div style={{ color: 'var(--blue)', fontWeight: 700 }}>{formatarPercentual(funcionario.percentualPontualidade)}</div>
+                      </div>
+
+                      <div>
+                        <div style={{ color: 'var(--text2)', fontSize: 10, marginBottom: 2 }}>Faltas</div>
+                        <div style={{ color: funcionario.faltas > 0 ? 'var(--red)' : 'var(--text1)', fontWeight: 700 }}>{funcionario.faltas}</div>
+                      </div>
+
+                      <div>
+                        <div style={{ color: 'var(--text2)', fontSize: 10, marginBottom: 2 }}>Enc. auto</div>
+                        <div style={{ color: funcionario.encerramentosAutomaticos > 0 ? 'var(--yellow)' : 'var(--text1)', fontWeight: 700 }}>{funcionario.encerramentosAutomaticos}</div>
+                      </div>
+
+                      <div>
+                        <div style={{ color: 'var(--text2)', fontSize: 10, marginBottom: 2 }}>Horas</div>
+                        <div style={{ color: 'var(--accent)', fontWeight: 700, fontFamily: 'monospace' }}>{funcionario.horasTotais}</div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Resumo Inteligente */}
         {insightsData && insightsData.destaques.length > 0 && (
@@ -545,9 +887,21 @@ export function PontoAnalyticsPage() {
           {/* Frequência */}
           <Card>
             <CardHeader>
-              <div className="pa-chart-header">
-                <TrendingUp size={16} />
-                <CardTitle className="text-sm section-title">FREQUÊNCIA SEMANAL</CardTitle>
+              <div className="pa-chart-header" style={{ alignItems: 'flex-start' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <TrendingUp size={16} />
+                  <CardTitle className="text-sm section-title">FREQUÊNCIA SEMANAL</CardTitle>
+                </div>
+                {resumoFrequenciaSemanal && (
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginLeft: 'auto', justifyContent: 'flex-end' }}>
+                    <span style={{ padding: '4px 10px', borderRadius: 999, background: 'var(--green-dim)', color: 'var(--green)', fontSize: 11, fontWeight: 700, border: '1px solid var(--green)' }}>
+                      Média: {resumoFrequenciaSemanal.mediaPercentual}%
+                    </span>
+                    <span style={{ padding: '4px 10px', borderRadius: 999, background: 'var(--accent-dim, rgba(108,99,255,0.15))', color: 'var(--accent)', fontSize: 11, fontWeight: 700, border: '1px solid var(--accent)' }}>
+                      Melhor semana: {resumoFrequenciaSemanal.melhorSemana.semana} · {resumoFrequenciaSemanal.melhorSemana.percentual}%
+                    </span>
+                  </div>
+                )}
               </div>
             </CardHeader>
             <CardContent>
@@ -557,20 +911,36 @@ export function PontoAnalyticsPage() {
                     <div key={i} className="skeleton" style={{ height: `${h}%`, width: '14%' }} />
                   ))}
                 </div>
-              ) : metricas.frequenciaSemanal.length === 0 ? (
+              ) : frequenciaSemanalData.length === 0 ? (
                 <div className="pa-chart-empty">
                   <TrendingUp size={32} />
                   <span>Sem dados no período</span>
                 </div>
               ) : (
-                <ResponsiveContainer width="100%" height={280}>
-                  <AreaChart data={metricas.frequenciaSemanal} margin={{ left: -10 }}>
+                <div style={{ display: 'grid', gap: 12 }}>
+                  <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', fontSize: 12, color: 'var(--text2)' }}>
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                      <span style={{ width: 10, height: 10, borderRadius: 999, background: '#22d3a0', display: 'inline-block' }} />
+                      Presenças registradas
+                    </span>
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                      <span style={{ width: 10, height: 10, borderRadius: 999, background: '#8b7cff', display: 'inline-block' }} />
+                      Jornadas esperadas
+                    </span>
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                      <span style={{ width: 10, height: 10, borderRadius: 999, background: '#4db8ff', display: 'inline-block' }} />
+                      % de presença
+                    </span>
+                  </div>
+
+                  <ResponsiveContainer width="100%" height={280}>
+                  <AreaChart data={frequenciaSemanalData} margin={{ left: -10, right: 8 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
                     <XAxis dataKey="semana" tick={{ fill: '#8a8a9a', fontSize: 11 }} />
-                    <YAxis tick={{ fill: '#8a8a9a', fontSize: 11 }} />
+                    <YAxis yAxisId="jornadas" tick={{ fill: '#8a8a9a', fontSize: 11 }} />
+                    <YAxis yAxisId="percentual" orientation="right" domain={[0, 100]} tickFormatter={(value) => `${value}%`} tick={{ fill: '#8a8a9a', fontSize: 11 }} />
                     <Tooltip
-                      contentStyle={{ background: '#1a1a24', border: '1px solid #2a2a38', borderRadius: 8, color: '#fff', fontSize: 12 }}
-                      formatter={(value, name) => [value, name === 'presencas' ? 'Presenças' : 'Total']}
+                      content={<FrequenciaSemanalTooltip />}
                     />
                     <defs>
                       <linearGradient id="areaGrad" x1="0" y1="0" x2="0" y2="1">
@@ -581,13 +951,16 @@ export function PontoAnalyticsPage() {
                     <Area
                       type="monotone"
                       dataKey="presencas"
+                      yAxisId="jornadas"
                       stroke="#22d3a0"
                       fill="url(#areaGrad)"
                       strokeWidth={2}
                     />
-                    <Line type="monotone" dataKey="total" stroke="#6c63ff" strokeWidth={2} strokeDasharray="5 5" dot={false} />
+                    <Line type="monotone" dataKey="total" yAxisId="jornadas" stroke="#8b7cff" strokeWidth={2} strokeDasharray="5 5" dot={false} name="Jornadas esperadas" />
+                    <Line type="monotone" dataKey="percentual" yAxisId="percentual" stroke="#4db8ff" strokeWidth={2} dot={{ r: 3, strokeWidth: 0, fill: '#4db8ff' }} name="% de presença" />
                   </AreaChart>
                 </ResponsiveContainer>
+                </div>
               )}
             </CardContent>
           </Card>

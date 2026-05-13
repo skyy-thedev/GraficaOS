@@ -8,6 +8,9 @@ import {
   LogOut,
   CheckSquare,
   BarChart3,
+  CalendarDays,
+  Factory,
+  Repeat2,
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { useState } from 'react';
@@ -29,6 +32,9 @@ export function MobileNav() {
   const extraItems = [
     ...(isAdmin ? [{ to: '/gestao-pontos', icon: ClipboardList, label: 'Gestão' }] : []),
     ...(isAdmin ? [{ to: '/ponto/analytics', icon: BarChart3, label: 'Analytics' }] : []),
+    ...(isAdmin ? [{ to: '/agenda-producao', icon: CalendarDays, label: 'Agenda' }] : []),
+    ...(isAdmin ? [{ to: '/gestao-operacional', icon: Factory, label: 'Operação' }] : []),
+    ...(isAdmin ? [{ to: '/clientes-recorrentes', icon: Repeat2, label: 'Clientes' }] : []),
     ...(isAdmin ? [{ to: '/funcionarios', icon: Users, label: 'Equipe' }] : []),
   ];
 

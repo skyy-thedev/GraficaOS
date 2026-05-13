@@ -14,9 +14,9 @@ import { useRelatorio, useEditarPonto, useCriarPontoManual, useFolgas, useConfig
 import { useUsers } from '@/hooks/useUsers';
 import { useAuth } from '@/hooks/useAuth';
 import { Download, Clock, ClipboardList, CheckCircle, Users as UsersIcon, UserX, Pencil, X, Plus, CalendarOff, Calendar } from 'lucide-react';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { format } from 'date-fns';
-import type { Ponto, PontoStatus } from '@/types';
+import type { FolgaConfig, Ponto, PontoStatus, User } from '@/types';
 import { formatarHora, formatarData } from '@/utils/timezone';
 
 // ===== Helpers =====
@@ -51,6 +51,40 @@ function fmtTime(dateStr: string | null): string {
 function isoToHHmm(iso: string | null | undefined): string {
   if (!iso) return '';
   return formatarHora(iso); // retorna "HH:mm"
+}
+
+function getDiaSemanaDateKey(dateKey: string): number {
+  return new Date(`${dateKey}T12:00:00`).getDay();
+}
+
+function criarLinhaFolga(user: User, dateKey: string): Ponto {
+  const isoDate = `${dateKey}T12:00:00.000Z`;
+
+  return {
+    id: `folga-${user.id}-${dateKey}`,
+    userId: user.id,
+    user: {
+      id: user.id,
+      name: user.name,
+      initials: user.initials,
+      avatarColor: user.avatarColor,
+    },
+    date: isoDate,
+    entrada: null,
+    almoco: null,
+    retorno: null,
+    saida: null,
+    status: 'FOLGA',
+    encerramentoAutomatico: false,
+    horasTrabalhadas: null,
+    createdAt: isoDate,
+    updatedAt: isoDate,
+  };
+}
+
+function isFolgaConfiguradaNoDia(userId: string, dateKey: string, folgas: FolgaConfig[]): boolean {
+  const diaSemana = getDiaSemanaDateKey(dateKey);
+  return folgas.some((folga) => folga.userId === userId && folga.diaSemana === diaSemana);
 }
 
 function exportCSV(pontos: Ponto[]) {
@@ -195,12 +229,50 @@ export function GestaoPontosPage() {
     userId: filterUserId !== 'all' ? filterUserId : undefined,
   });
 
+  const usuariosEscopo = useMemo(
+    () => (filterUserId === 'all' ? activeUsers : activeUsers.filter((user) => user.id === filterUserId)),
+    [activeUsers, filterUserId],
+  );
+
+  const pontosExibidos = useMemo(() => {
+    const pontosBase = relatorioPontos ?? [];
+    const pontoPorUsuario = new Map(pontosBase.map((ponto) => [ponto.userId, ponto]));
+    const folgas = folgasData ?? [];
+    const linhasFolga = usuariosEscopo
+      .filter((user) => !pontoPorUsuario.has(user.id) && isFolgaConfiguradaNoDia(user.id, filterDate, folgas))
+      .map((user) => criarLinhaFolga(user, filterDate));
+
+    return [...pontosBase, ...linhasFolga].sort((a, b) => a.user.name.localeCompare(b.user.name));
+  }, [relatorioPontos, folgasData, usuariosEscopo, filterDate]);
+
+  const ausentesCount = useMemo(() => {
+    const pontoPorUsuario = new Map(pontosExibidos.map((ponto) => [ponto.userId, ponto]));
+    const diaSemana = getDiaSemanaDateKey(filterDate);
+    const ehDiaUtil = diaSemana !== 0 && diaSemana !== 6;
+
+    if (!ehDiaUtil) {
+      return 0;
+    }
+
+    return usuariosEscopo.filter((user) => {
+      const ponto = pontoPorUsuario.get(user.id);
+
+      if (isFolgaConfiguradaNoDia(user.id, filterDate, folgasData ?? [])) {
+        return false;
+      }
+
+      if (ponto?.status === 'FOLGA') {
+        return false;
+      }
+
+      return !ponto?.entrada;
+    }).length;
+  }, [pontosExibidos, usuariosEscopo, filterDate, folgasData]);
+
   // Stats
-  const totalRegistros = relatorioPontos?.length ?? 0;
-  const completosCount = relatorioPontos?.filter((p) => !!p.saida).length ?? 0;
-  const trabalhandoCount = relatorioPontos?.filter((p) => p.entrada && !p.saida).length ?? 0;
-  const totalFuncionarios = activeUsers.length;
-  const ausentesCount = totalFuncionarios - totalRegistros;
+  const totalRegistros = pontosExibidos.length;
+  const completosCount = pontosExibidos.filter((p) => !!p.saida).length;
+  const trabalhandoCount = pontosExibidos.filter((p) => p.entrada && !p.saida).length;
 
   return (
     <>
@@ -263,8 +335,8 @@ export function GestaoPontosPage() {
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={() => relatorioPontos && exportCSV(relatorioPontos)}
-                  disabled={!relatorioPontos || relatorioPontos.length === 0}
+                  onClick={() => pontosExibidos.length > 0 && exportCSV(pontosExibidos)}
+                  disabled={pontosExibidos.length === 0}
                 >
                   <Download size={14} />
                   Exportar CSV
@@ -303,7 +375,7 @@ export function GestaoPontosPage() {
                   <div key={i} className="skeleton h-12 w-full" />
                 ))}
               </div>
-            ) : !relatorioPontos || relatorioPontos.length === 0 ? (
+            ) : pontosExibidos.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-16 text-center text-muted">
                 <Clock size={36} className="mb-2 opacity-30" />
                 <p className="text-sm">Nenhum registro encontrado para este filtro.</p>
@@ -324,7 +396,7 @@ export function GestaoPontosPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {relatorioPontos.map((p) => {
+                    {pontosExibidos.map((p) => {
                       const horas = calcularHoras(p);
                       const status = getStatusLabel(p);
 
