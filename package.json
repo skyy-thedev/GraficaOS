@@ -12,7 +12,7 @@
     "apps/web"
   ],
   "scripts": {
-    "postinstall": "npm run db:generate",
+    "postinstall": "node scripts/postinstall.cjs",
     "dev:api": "npm run dev -w apps/api",
     "dev:web": "npm run dev -w apps/web",
     "dev": "concurrently \"npm run dev:api\" \"npm run dev:web\"",
