@@ -3,6 +3,10 @@
   "version": "1.0.0",
   "private": true,
   "description": "GráficaOS — Sistema de gestão para gráficas",
+  "engines": {
+    "node": ">=20.0.0",
+    "npm": ">=10.0.0"
+  },
   "workspaces": [
     "apps/api",
     "apps/web"

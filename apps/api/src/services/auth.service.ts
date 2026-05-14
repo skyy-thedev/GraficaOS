@@ -1,5 +1,6 @@
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
+import type { StringValue } from 'ms';
 import { prisma } from '../prisma/client';
 import { env } from '../config/env';
 import type { JwtPayload } from '../middlewares/auth';
@@ -17,22 +18,39 @@ interface AuthResponse {
     name: string;
     email: string;
     role: string;
+    loja: 'PAPER_OFFICE_I' | 'PAPER_OFFICE_II';
+    jornadaEntrada: string;
+    jornadaSaida: string;
     avatarColor: string;
     initials: string;
   };
 }
 
 /** Gera o access token JWT */
+function parseJwtExpiresIn(value: string): number | StringValue {
+  const normalizedValue = value.trim().toLowerCase();
+
+  if (/^\d+$/.test(normalizedValue)) {
+    return Number(normalizedValue);
+  }
+
+  if (/^\d+(ms|s|m|h|d|w|y)$/.test(normalizedValue)) {
+    return normalizedValue as StringValue;
+  }
+
+  throw new Error(`Formato inválido para expiração JWT: ${value}`);
+}
+
 function generateToken(userId: string, role: string): string {
   return jwt.sign({ sub: userId, role }, env.JWT_SECRET, {
-    expiresIn: env.JWT_EXPIRES_IN as string,
+    expiresIn: parseJwtExpiresIn(env.JWT_EXPIRES_IN),
   });
 }
 
 /** Gera o refresh token JWT */
 function generateRefreshToken(userId: string, role: string): string {
   return jwt.sign({ sub: userId, role }, env.JWT_REFRESH_SECRET, {
-    expiresIn: env.JWT_REFRESH_EXPIRES_IN as string,
+    expiresIn: parseJwtExpiresIn(env.JWT_REFRESH_EXPIRES_IN),
   });
 }
 
@@ -63,6 +81,9 @@ export async function login({ email, password }: LoginInput): Promise<AuthRespon
       name: user.name,
       email: user.email,
       role: user.role,
+      loja: user.loja,
+      jornadaEntrada: user.jornadaEntrada,
+      jornadaSaida: user.jornadaSaida,
       avatarColor: user.avatarColor,
       initials: user.initials,
     },
@@ -99,6 +120,9 @@ export async function getMe(userId: string) {
       name: true,
       email: true,
       role: true,
+      loja: true,
+      jornadaEntrada: true,
+      jornadaSaida: true,
       avatarColor: true,
       initials: true,
       active: true,

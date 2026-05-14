@@ -4,7 +4,9 @@ import { authMiddleware, adminOnly } from '../middlewares/auth';
 
 const router = Router();
 
-// Todas as rotas de ponto exigem autenticação
+router.get('/comprovante/:token', pontoController.validarComprovantePublico);
+
+// Todas as demais rotas de ponto exigem autenticação
 router.use(authMiddleware);
 
 router.get('/', pontoController.list);
@@ -14,6 +16,7 @@ router.get('/relatorio', pontoController.relatorio);
 router.get('/metricas', pontoController.metricas);
 router.get('/anomalias', pontoController.anomalias);
 router.get('/insights', pontoController.insights);
+router.get('/:id/comprovante-token', pontoController.gerarTokenComprovante);
 
 // Ponto manual (somente admin)
 router.post('/manual', adminOnly, pontoController.criarManual);

@@ -9,6 +9,11 @@ function getInitials(name: string): string {
   return `${parts[0]![0]}${parts[parts.length - 1]![0]}`.toUpperCase();
 }
 
+function splitHorario(horario: string): [number, number] {
+  const [hora, minuto] = horario.split(':').map(Number);
+  return [hora ?? 0, minuto ?? 0];
+}
+
 async function main() {
   console.log('🌱 Iniciando seed do banco de dados...');
 
@@ -30,6 +35,9 @@ async function main() {
       email: 'admin@graficaos.com',
       password: senhaAdmin,
       role: 'ADMIN',
+      loja: 'PAPER_OFFICE_I',
+      jornadaEntrada: '09:00',
+      jornadaSaida: '18:00',
       avatarColor: '#6c63ff',
       initials: 'AD',
     },
@@ -41,6 +49,9 @@ async function main() {
       email: 'ana@graficaos.com',
       password: senha123456,
       role: 'EMPLOYEE',
+      loja: 'PAPER_OFFICE_I',
+      jornadaEntrada: '10:00',
+      jornadaSaida: '18:30',
       avatarColor: '#22d3a0',
       initials: 'AS',
     },
@@ -52,6 +63,9 @@ async function main() {
       email: 'carlos@graficaos.com',
       password: senha123456,
       role: 'EMPLOYEE',
+      loja: 'PAPER_OFFICE_I',
+      jornadaEntrada: '10:00',
+      jornadaSaida: '18:30',
       avatarColor: '#f5c542',
       initials: 'CM',
     },
@@ -63,6 +77,9 @@ async function main() {
       email: 'julia@graficaos.com',
       password: senha123456,
       role: 'EMPLOYEE',
+      loja: 'PAPER_OFFICE_II',
+      jornadaEntrada: '10:00',
+      jornadaSaida: '18:30',
       avatarColor: '#ff5e5e',
       initials: 'JR',
     },
@@ -74,6 +91,9 @@ async function main() {
       email: 'marcos@graficaos.com',
       password: senha123456,
       role: 'EMPLOYEE',
+      loja: 'PAPER_OFFICE_II',
+      jornadaEntrada: '10:00',
+      jornadaSaida: '18:30',
       avatarColor: '#4db8ff',
       initials: 'ML',
     },
@@ -173,19 +193,21 @@ async function main() {
       const dia = new Date(hoje);
       dia.setDate(dia.getDate() - i);
       const dateOnly = new Date(dia.getFullYear(), dia.getMonth(), dia.getDate());
+      const [horaEntradaBase, minutoEntradaBase] = splitHorario(func.jornadaEntrada);
+      const [horaSaidaBase, minutoSaidaBase] = splitHorario(func.jornadaSaida);
 
       // Horários simulados
       const entrada = new Date(dia);
-      entrada.setHours(8, 0 + Math.floor(Math.random() * 15), 0, 0);
+      entrada.setHours(horaEntradaBase, minutoEntradaBase + Math.floor(Math.random() * 15), 0, 0);
 
       const almoco = new Date(dia);
-      almoco.setHours(12, 0 + Math.floor(Math.random() * 10), 0, 0);
+      almoco.setHours(13, 0 + Math.floor(Math.random() * 10), 0, 0);
 
       const retorno = new Date(dia);
-      retorno.setHours(13, 0 + Math.floor(Math.random() * 15), 0, 0);
+      retorno.setHours(14, 0 + Math.floor(Math.random() * 15), 0, 0);
 
       const saida = new Date(dia);
-      saida.setHours(17, 30 + Math.floor(Math.random() * 30), 0, 0);
+      saida.setHours(horaSaidaBase, minutoSaidaBase + Math.floor(Math.random() * 20), 0, 0);
 
       await prisma.ponto.create({
         data: {

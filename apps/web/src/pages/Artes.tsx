@@ -32,7 +32,7 @@ import {
 } from '@/hooks/useArtes';
 import { useUsers } from '@/hooks/useUsers';
 import { useAuth } from '@/hooks/useAuth';
-import type { Arte, ArteStatus, CreateArteRequest, ProdutoTipo, Urgencia } from '@/types';
+import type { Arte, ArteStatus, CreateArteRequest, Loja, ProdutoTipo, Urgencia } from '@/types';
 import {
   Palette,
   AlertTriangle,
@@ -68,6 +68,7 @@ import {
 import { CSS } from '@dnd-kit/utilities';
 import { format } from 'date-fns';
 import { API_BASE } from '@/services/api';
+import { LOJA_LABELS, LOJA_OPTIONS } from '@/utils/lojas';
 
 function formatarMedidasCm(larguraCm: number, alturaCm: number): string {
   return `${larguraCm}×${alturaCm}cm`;
@@ -484,7 +485,7 @@ function ArteFormModal({
                 <SelectContent>
                   {activeUsers.map((u) => (
                     <SelectItem key={u.id} value={u.id}>
-                      {u.name}
+                      {u.name} · {LOJA_LABELS[u.loja]}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -659,6 +660,7 @@ function ArteDetailModal({
                   {arte.responsavel.initials}
                 </div>
                 <span className="text-primary">{arte.responsavel.name}</span>
+                <span className="text-xs text-muted-subtle">· {LOJA_LABELS[arte.responsavel.loja]}</span>
               </div>
             </div>
             {arte.prazo && (
@@ -837,6 +839,7 @@ export function ArtesPage() {
   // Filtros
   const [searchText, setSearchText] = useState('');
   const [filterResponsavel, setFilterResponsavel] = useState<string>('all');
+  const [filterLoja, setFilterLoja] = useState<'all' | Loja>('all');
   const [filterUrgencia, setFilterUrgencia] = useState<string>('all');
 
   // Modais
@@ -864,12 +867,16 @@ export function ArtesPage() {
       result = result.filter((a) => a.responsavelId === filterResponsavel);
     }
 
+    if (filterLoja !== 'all') {
+      result = result.filter((a) => a.responsavel.loja === filterLoja);
+    }
+
     if (filterUrgencia && filterUrgencia !== 'all') {
       result = result.filter((a) => a.urgencia === filterUrgencia);
     }
 
     return result;
-  }, [artes, searchText, filterResponsavel, filterUrgencia]);
+  }, [artes, searchText, filterResponsavel, filterLoja, filterUrgencia]);
 
   // Agrupa artes por status para o kanban
   const groupedArtes = useMemo(() => {
@@ -921,6 +928,7 @@ export function ArtesPage() {
   };
 
   const activeUsers = users?.filter((u) => u.active) ?? [];
+  const responsaveisFiltrados = activeUsers.filter((user) => filterLoja === 'all' || user.loja === filterLoja);
 
   return (
     <>
@@ -948,10 +956,22 @@ export function ArtesPage() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Todos</SelectItem>
-                {activeUsers.map((u) => (
+                {responsaveisFiltrados.map((u) => (
                   <SelectItem key={u.id} value={u.id}>
                     {u.name}
                   </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <Select value={filterLoja} onValueChange={(value) => setFilterLoja(value as 'all' | Loja)}>
+              <SelectTrigger className="artes-filter-select">
+                <SelectValue placeholder="Loja" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todas as lojas</SelectItem>
+                {LOJA_OPTIONS.map((loja) => (
+                  <SelectItem key={loja.value} value={loja.value}>{loja.label}</SelectItem>
                 ))}
               </SelectContent>
             </Select>

@@ -2,11 +2,16 @@ import { Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
 import * as userService from '../services/user.service';
 
+const timeSchema = z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/, 'Horário deve estar no formato HH:mm');
+
 const createUserSchema = z.object({
   name: z.string().min(2, 'Nome deve ter ao menos 2 caracteres'),
   email: z.string().email('Email inválido'),
   password: z.string().min(6, 'Senha deve ter ao menos 6 caracteres'),
   role: z.enum(['ADMIN', 'EMPLOYEE']).optional(),
+  loja: z.enum(['PAPER_OFFICE_I', 'PAPER_OFFICE_II']).optional(),
+  jornadaEntrada: timeSchema.optional(),
+  jornadaSaida: timeSchema.optional(),
   avatarColor: z.string().optional(),
 });
 
@@ -15,6 +20,9 @@ const updateUserSchema = z.object({
   email: z.string().email().optional(),
   password: z.string().min(6).optional(),
   role: z.enum(['ADMIN', 'EMPLOYEE']).optional(),
+  loja: z.enum(['PAPER_OFFICE_I', 'PAPER_OFFICE_II']).optional(),
+  jornadaEntrada: timeSchema.optional(),
+  jornadaSaida: timeSchema.optional(),
   avatarColor: z.string().optional(),
   active: z.boolean().optional(),
 });

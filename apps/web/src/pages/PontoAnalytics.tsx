@@ -33,11 +33,12 @@ import {
   Timer,
   Pencil,
 } from 'lucide-react';
-import { useState, useMemo } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
-import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, subMonths } from 'date-fns';
+import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, subDays, subMonths } from 'date-fns';
 import { formatarHora, formatarData } from '@/utils/timezone';
+import { LOJA_LABELS, LOJA_OPTIONS } from '@/utils/lojas';
 import {
   BarChart,
   Bar,
@@ -51,7 +52,215 @@ import {
   Area,
   AreaChart,
 } from 'recharts';
-import type { Ponto, Anomalia, PontoStatus, MetricasPonto } from '@/types';
+import type { Loja, Ponto, Anomalia, PontoStatus, MetricasPonto } from '@/types';
+
+type TipoAlertaGerencial = 'danger' | 'warning' | 'info' | 'success';
+
+type RankingFuncionario = {
+  id: string;
+  nome: string;
+  initials: string;
+  avatarColor: string;
+  loja: import('@/types').Loja;
+  jornadaEntrada: string;
+  jornadaSaida: string;
+  diasEsperados: number;
+  diasPresente: number;
+  faltas: number;
+  atrasos: number;
+  percentualPresenca: number;
+  percentualPontualidade: number;
+  encerramentosAutomaticos: number;
+  horasTotais: string;
+  diasCalendario: Array<{ dateKey: string; status: DiaCalendarioStatus; entrada: string | null }>;
+  score: number;
+  posicao?: number;
+};
+
+function horarioParaMinutos(horario: string): number {
+  const [hora, minuto] = horario.split(':').map(Number);
+  return (hora ?? 0) * 60 + (minuto ?? 0);
+}
+
+function getEasterDateKey(year: number): string {
+  const a = year % 19;
+  const b = Math.floor(year / 100);
+  const c = year % 100;
+  const d = Math.floor(b / 4);
+  const e = b % 4;
+  const f = Math.floor((b + 8) / 25);
+  const g = Math.floor((b - f + 1) / 3);
+  const h = (19 * a + b - d - g + 15) % 30;
+  const i = Math.floor(c / 4);
+  const k = c % 4;
+  const l = (32 + 2 * e + 2 * i - h - k) % 7;
+  const m = Math.floor((a + 11 * h + 22 * l) / 451);
+  const month = Math.floor((h + l - 7 * m + 114) / 31);
+  const day = ((h + l - 7 * m + 114) % 31) + 1;
+
+  return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+}
+
+function shiftDateKey(dateKey: string, days: number): string {
+  const date = new Date(`${dateKey}T12:00:00`);
+  date.setDate(date.getDate() + days);
+  return format(date, 'yyyy-MM-dd');
+}
+
+function isFeriadoDateKey(dateKey: string): boolean {
+  const fixedHolidays = new Set([
+    '01-01',
+    '04-21',
+    '05-01',
+    '09-07',
+    '10-12',
+    '11-02',
+    '11-15',
+    '11-20',
+    '12-25',
+  ]);
+
+  const [, month, day] = dateKey.split('-');
+  if (fixedHolidays.has(`${month}-${day}`)) {
+    return true;
+  }
+
+  const year = Number(dateKey.slice(0, 4));
+  const pascoa = getEasterDateKey(year);
+  const moveableHolidays = new Set([
+    shiftDateKey(pascoa, -48),
+    shiftDateKey(pascoa, -47),
+    shiftDateKey(pascoa, -2),
+    pascoa,
+    shiftDateKey(pascoa, 60),
+  ]);
+
+  return moveableHolidays.has(dateKey);
+}
+
+function isEntradaPontual(entradaIso: string, jornadaEntrada: string, dateKey: string, toleranciaMinutos = 15): boolean {
+  const entrada = new Date(entradaIso);
+  const minutosEntrada = entrada.getHours() * 60 + entrada.getMinutes();
+  const domingo = getDiaSemana(dateKey) === 0;
+  const feriado = isFeriadoDateKey(dateKey);
+
+  if ((domingo || feriado) && minutosEntrada <= (12 * 60) + toleranciaMinutos) {
+    return true;
+  }
+
+  return minutosEntrada <= horarioParaMinutos(jornadaEntrada) + toleranciaMinutos;
+}
+
+function buildRankingFuncionarios({
+  usuariosEscopo,
+  pontosDoPeriodo,
+  folgasData,
+  startDate,
+  endDate,
+  diasCalendarioVisiveis,
+}: {
+  usuariosEscopo: Array<import('@/types').User>;
+  pontosDoPeriodo: Ponto[];
+  folgasData: import('@/types').FolgaConfig[] | undefined;
+  startDate: string;
+  endDate: string;
+  diasCalendarioVisiveis: string[];
+}): RankingFuncionario[] {
+  if (!usuariosEscopo.length) return [];
+
+  const endDateLimitado = limitarDataFinalAoHoje(endDate);
+  const datasPeriodo = startDate <= endDateLimitado ? listarDatasNoPeriodo(startDate, endDateLimitado) : [];
+  const pontoMap = new Map(pontosDoPeriodo.map((ponto) => [`${ponto.userId}:${ponto.date.slice(0, 10)}`, ponto]));
+  const folgasPorUsuario = new Map<string, Set<number>>();
+
+  for (const user of usuariosEscopo) {
+    folgasPorUsuario.set(user.id, new Set((folgasData ?? []).filter((folga) => folga.userId === user.id).map((folga) => folga.diaSemana)));
+  }
+
+  return usuariosEscopo
+    .map((user) => {
+      const folgasUsuario = folgasPorUsuario.get(user.id) ?? new Set<number>();
+      let diasEsperados = 0;
+      let diasPresente = 0;
+      let diasPontuais = 0;
+      let faltas = 0;
+      let atrasos = 0;
+      let encerramentosAutomaticos = 0;
+      let minutosTotais = 0;
+      const diasCalendario = diasCalendarioVisiveis.map((dateKey) => {
+        const ponto = pontoMap.get(`${user.id}:${dateKey}`);
+        const status = getDiaCalendarioStatus(dateKey, ponto, folgasUsuario);
+
+        return {
+          dateKey,
+          status,
+          entrada: ponto?.entrada ?? null,
+        };
+      });
+
+      for (const dateKey of datasPeriodo) {
+        const ponto = pontoMap.get(`${user.id}:${dateKey}`);
+        const statusDia = getDiaCalendarioStatus(dateKey, ponto, folgasUsuario);
+
+        if (statusDia === 'FIM_DE_SEMANA' || statusDia === 'FOLGA') {
+          continue;
+        }
+
+        diasEsperados++;
+
+        if (statusDia === 'PRESENTE' && ponto?.entrada) {
+          diasPresente++;
+
+          if (isEntradaPontual(ponto.entrada, user.jornadaEntrada, dateKey)) {
+            diasPontuais++;
+          } else {
+            atrasos++;
+          }
+
+          if (ponto.saida) {
+            let totalMs = new Date(ponto.saida).getTime() - new Date(ponto.entrada).getTime();
+            if (ponto.almoco && ponto.retorno) {
+              totalMs -= new Date(ponto.retorno).getTime() - new Date(ponto.almoco).getTime();
+            }
+            minutosTotais += Math.max(0, Math.floor(totalMs / 60000));
+          }
+        } else {
+          faltas++;
+        }
+
+        if (ponto?.encerramentoAutomatico) {
+          encerramentosAutomaticos++;
+        }
+      }
+
+      const percentualPresenca = diasEsperados > 0 ? Math.round((diasPresente / diasEsperados) * 100) : 0;
+      const percentualPontualidade = diasPresente > 0 ? Math.round((diasPontuais / diasPresente) * 100) : 0;
+      const horasTotais = `${Math.floor(minutosTotais / 60)}h${String(minutosTotais % 60).padStart(2, '0')}m`;
+      const score = percentualPresenca * 1000 + percentualPontualidade * 10 - faltas * 8 - atrasos * 4 - encerramentosAutomaticos * 3;
+
+      return {
+        id: user.id,
+        nome: user.name,
+        initials: user.initials,
+        avatarColor: user.avatarColor,
+        loja: user.loja,
+        jornadaEntrada: user.jornadaEntrada,
+        jornadaSaida: user.jornadaSaida,
+        diasEsperados,
+        diasPresente,
+        faltas,
+        atrasos,
+        percentualPresenca,
+        percentualPontualidade,
+        encerramentosAutomaticos,
+        horasTotais,
+        diasCalendario,
+        score,
+      };
+    })
+    .sort((a, b) => b.score - a.score || b.percentualPresenca - a.percentualPresenca || b.percentualPontualidade - a.percentualPontualidade || a.faltas - b.faltas)
+    .map((item, index) => ({ ...item, posicao: index + 1 }));
+}
 
 function getPercentualSemanal(presencas: number, total: number): number {
   if (total <= 0) return 0;
@@ -77,11 +286,53 @@ function limitarDataFinalAoHoje(end: string): string {
 }
 
 function getDiaSemana(dateKey: string): number {
-  return new Date(`${dateKey}T00:00:00`).getDay();
+  return new Date(`${dateKey}T12:00:00`).getDay();
 }
 
 function formatarPercentual(value: number): string {
   return `${Math.round(value)}%`;
+}
+
+type DiaCalendarioStatus = 'PRESENTE' | 'FALTA' | 'FOLGA' | 'FIM_DE_SEMANA';
+
+function isDiaUtil(dateKey: string): boolean {
+  return true;
+}
+
+function getDiaCalendarioStatus(dateKey: string, ponto: Ponto | undefined, folgasUsuario: Set<number>): DiaCalendarioStatus {
+  const diaSemana = getDiaSemana(dateKey);
+
+  if (!isDiaUtil(dateKey)) {
+    return 'FIM_DE_SEMANA';
+  }
+
+  if (folgasUsuario.has(diaSemana) || ponto?.status === 'FOLGA') {
+    return 'FOLGA';
+  }
+
+  if (ponto?.entrada) {
+    return 'PRESENTE';
+  }
+
+  return 'FALTA';
+}
+
+function getStatusCalendarioVisual(status: DiaCalendarioStatus): { bg: string; color: string; border: string; label: string } {
+  if (status === 'PRESENTE') return { bg: 'rgba(34,211,160,0.18)', color: '#58f0c0', border: '#22d3a0', label: 'Presença' };
+  if (status === 'FOLGA') return { bg: 'rgba(108,99,255,0.18)', color: '#b39bff', border: '#8b7cff', label: 'Folga' };
+  if (status === 'FIM_DE_SEMANA') return { bg: 'rgba(255,255,255,0.04)', color: 'var(--text3)', border: 'var(--border2)', label: 'Fim de semana' };
+  return { bg: 'rgba(255,94,94,0.16)', color: '#ff7f7f', border: '#ff5e5e', label: 'Falta' };
+}
+
+function getDiaAbreviado(dateKey: string): string {
+  return ['DOM', 'SEG', 'TER', 'QUA', 'QUI', 'SEX', 'SÁB'][getDiaSemana(dateKey)] ?? '';
+}
+
+function getMedalha(posicao: number): string {
+  if (posicao === 1) return '🥇';
+  if (posicao === 2) return '🥈';
+  if (posicao === 3) return '🥉';
+  return '•';
 }
 
 function FrequenciaSemanalTooltip({ active, payload, label }: {
@@ -148,7 +399,26 @@ function getStatusLabel(p: Ponto): { label: string; color: string; dimColor: str
   return { label: 'Ausente', color: 'var(--red)', dimColor: 'var(--red-dim)' };
 }
 
-type PeriodoPreset = 'hoje' | 'semana' | 'mes' | 'semestre' | 'ano' | 'custom';
+type PeriodoPreset = 'hoje' | 'semana' | 'mes' | 'mes-anterior' | 'semestre' | 'ano' | 'custom';
+
+function getPeriodoLabel(preset: PeriodoPreset): string {
+  switch (preset) {
+    case 'hoje':
+      return 'hoje';
+    case 'semana':
+      return 'na semana atual';
+    case 'mes':
+      return 'no mês atual';
+    case 'mes-anterior':
+      return 'no mês anterior';
+    case 'semestre':
+      return 'no semestre selecionado';
+    case 'ano':
+      return 'no ano atual';
+    default:
+      return 'no período selecionado';
+  }
+}
 
 function getDateRange(preset: PeriodoPreset): { start: string; end: string } {
   const hoje = new Date();
@@ -165,6 +435,13 @@ function getDateRange(preset: PeriodoPreset): { start: string; end: string } {
         start: format(startOfMonth(hoje), 'yyyy-MM-dd'),
         end: format(endOfMonth(hoje), 'yyyy-MM-dd'),
       };
+    case 'mes-anterior': {
+      const mesAnterior = subMonths(hoje, 1);
+      return {
+        start: format(startOfMonth(mesAnterior), 'yyyy-MM-dd'),
+        end: format(endOfMonth(mesAnterior), 'yyyy-MM-dd'),
+      };
+    }
     case 'semestre':
       return {
         start: format(subMonths(hoje, 6), 'yyyy-MM-dd'),
@@ -184,7 +461,9 @@ export function PontoAnalyticsPage() {
   const { isAdmin } = useAuth();
   const { data: users } = useUsers();
   const { data: folgasData } = useFolgas();
-  const activeUsers = users?.filter((u) => u.active) ?? [];
+  const [filterLoja, setFilterLoja] = useState<'all' | Loja>('all');
+  const activeUsers = useMemo(() => (users ?? []).filter((u) => u.active && u.role === 'EMPLOYEE'), [users]);
+  const analyticsUsers = useMemo(() => activeUsers.filter((u) => filterLoja === 'all' || u.loja === filterLoja), [activeUsers, filterLoja]);
 
   const [periodo, setPeriodo] = useState<PeriodoPreset>('mes');
   const [customStart, setCustomStart] = useState(format(startOfMonth(new Date()), 'yyyy-MM-dd'));
@@ -194,19 +473,40 @@ export function PontoAnalyticsPage() {
   const [emailDest, setEmailDest] = useState('');
 
   const dateRange = periodo === 'custom' ? { start: customStart, end: customEnd } : getDateRange(periodo);
+  const periodoLabel = getPeriodoLabel(periodo);
 
   const queryParams = {
     startDate: dateRange.start,
     endDate: dateRange.end,
+    loja: filterLoja !== 'all' ? filterLoja : undefined,
     userId: filterUserId !== 'all' ? filterUserId : undefined,
+  };
+  const teamPeriodParams = {
+    startDate: dateRange.start,
+    endDate: dateRange.end,
+    loja: filterLoja !== 'all' ? filterLoja : undefined,
+  };
+  const insightsParams = {
+    startDate: dateRange.start,
+    endDate: dateRange.end,
+    loja: filterLoja !== 'all' ? filterLoja : undefined,
   };
 
   const { data: metricas, isLoading: loadingMetricas } = usePontoMetricas(queryParams);
   const { data: pontos, isLoading: loadingPontos } = useRelatorio(queryParams);
   const { data: anomalias } = useAnomalias(queryParams);
-  const { data: insightsData } = useInsights({ startDate: dateRange.start, endDate: dateRange.end });
+  const { data: insightsData } = useInsights(insightsParams);
+  const { data: teamMetricas } = usePontoMetricas(teamPeriodParams);
+  const { data: teamPontosPeriodo } = useRelatorio(teamPeriodParams);
+  const { data: teamAnomalias } = useAnomalias(teamPeriodParams);
   const exportar = useExportarPonto();
   const [insightsExpanded, setInsightsExpanded] = useState(true);
+
+  useEffect(() => {
+    if (filterUserId !== 'all' && !analyticsUsers.some((user) => user.id === filterUserId)) {
+      setFilterUserId('all');
+    }
+  }, [analyticsUsers, filterUserId]);
 
   // Edição de ponto (admin)
   const [editModal, setEditModal] = useState(false);
@@ -334,149 +634,120 @@ export function PontoAnalyticsPage() {
     return { melhorSemana, mediaPercentual };
   }, [frequenciaSemanalData]);
 
-  const rankingFuncionarios = useMemo(() => {
-    const usuariosEscopo = filterUserId === 'all'
-      ? activeUsers
-      : activeUsers.filter((user) => user.id === filterUserId);
-
-    if (!usuariosEscopo.length) return [];
-
-    const pontosDoPeriodo = pontos ?? [];
+  const diasCalendarioVisiveis = useMemo(() => {
     const endDateLimitado = limitarDataFinalAoHoje(dateRange.end);
     const datasPeriodo = dateRange.start <= endDateLimitado ? listarDatasNoPeriodo(dateRange.start, endDateLimitado) : [];
-    const pontoMap = new Map(pontosDoPeriodo.map((ponto) => [`${ponto.userId}:${ponto.date.slice(0, 10)}`, ponto]));
-    const folgasPorUsuario = new Map<string, Set<number>>();
+    return datasPeriodo.slice(-14);
+  }, [dateRange.start, dateRange.end]);
 
-    for (const user of usuariosEscopo) {
-      folgasPorUsuario.set(user.id, new Set((folgasData ?? []).filter((folga) => folga.userId === user.id).map((folga) => folga.diaSemana)));
-    }
+  const rankingFuncionarios = useMemo(() => {
+    const usuariosEscopo = filterUserId === 'all'
+      ? analyticsUsers
+      : analyticsUsers.filter((user) => user.id === filterUserId);
 
-    return usuariosEscopo
-      .map((user) => {
-        const folgasUsuario = folgasPorUsuario.get(user.id) ?? new Set<number>();
-        let diasEsperados = 0;
-        let diasPresente = 0;
-        let diasPontuais = 0;
-        let faltas = 0;
-        let encerramentosAutomaticos = 0;
-        let minutosTotais = 0;
+    return buildRankingFuncionarios({
+      usuariosEscopo,
+      pontosDoPeriodo: pontos ?? [],
+      folgasData,
+      startDate: dateRange.start,
+      endDate: dateRange.end,
+      diasCalendarioVisiveis,
+    });
+  }, [analyticsUsers, filterUserId, pontos, folgasData, dateRange.start, dateRange.end, diasCalendarioVisiveis]);
 
-        for (const dateKey of datasPeriodo) {
-          const diaSemana = getDiaSemana(dateKey);
-          const ponto = pontoMap.get(`${user.id}:${dateKey}`);
-          const ehDiaUtil = diaSemana !== 0 && diaSemana !== 6;
-          const ehFolgaConfigurada = folgasUsuario.has(diaSemana);
-          const ehFolgaManual = ponto?.status === 'FOLGA';
-
-          if (!ehDiaUtil || ehFolgaConfigurada || ehFolgaManual) {
-            continue;
-          }
-
-          diasEsperados++;
-
-          if (ponto?.entrada) {
-            diasPresente++;
-
-            const entrada = new Date(ponto.entrada);
-            const hora = entrada.getHours();
-            const minuto = entrada.getMinutes();
-            if (hora < 10 || (hora === 10 && minuto <= 15)) {
-              diasPontuais++;
-            }
-
-            if (ponto.saida) {
-              let totalMs = new Date(ponto.saida).getTime() - new Date(ponto.entrada).getTime();
-              if (ponto.almoco && ponto.retorno) {
-                totalMs -= new Date(ponto.retorno).getTime() - new Date(ponto.almoco).getTime();
-              }
-              minutosTotais += Math.max(0, Math.floor(totalMs / 60000));
-            }
-          } else {
-            faltas++;
-          }
-
-          if (ponto?.encerramentoAutomatico) {
-            encerramentosAutomaticos++;
-          }
-        }
-
-        const percentualPresenca = diasEsperados > 0 ? Math.round((diasPresente / diasEsperados) * 100) : 0;
-        const percentualPontualidade = diasPresente > 0 ? Math.round((diasPontuais / diasPresente) * 100) : 0;
-        const horasTotais = `${Math.floor(minutosTotais / 60)}h${String(minutosTotais % 60).padStart(2, '0')}m`;
-        const score = percentualPresenca * 1000 + percentualPontualidade * 10 - faltas * 5 - encerramentosAutomaticos * 3;
-
-        return {
-          id: user.id,
-          nome: user.name,
-          initials: user.initials,
-          avatarColor: user.avatarColor,
-          diasEsperados,
-          diasPresente,
-          faltas,
-          percentualPresenca,
-          percentualPontualidade,
-          encerramentosAutomaticos,
-          horasTotais,
-          score,
-        };
-      })
-      .sort((a, b) => b.score - a.score || b.percentualPresenca - a.percentualPresenca || b.percentualPontualidade - a.percentualPontualidade || a.faltas - b.faltas)
-      .map((item, index) => ({ ...item, posicao: index + 1 }));
-  }, [activeUsers, filterUserId, pontos, folgasData, dateRange.start, dateRange.end]);
+  const rankingEquipePeriodo = useMemo(() => buildRankingFuncionarios({
+    usuariosEscopo: analyticsUsers,
+    pontosDoPeriodo: teamPontosPeriodo ?? [],
+    folgasData,
+    startDate: dateRange.start,
+    endDate: dateRange.end,
+    diasCalendarioVisiveis: [],
+  }), [analyticsUsers, teamPontosPeriodo, folgasData, dateRange.start, dateRange.end]);
 
   const alertasGerenciais = useMemo(() => {
-    const alertas: Array<{ id: string; titulo: string; descricao: string; tipo: 'danger' | 'warning' | 'info' }> = [];
+    const alertas: Array<{ id: string; titulo: string; descricao: string; tipo: TipoAlertaGerencial }> = [];
 
-    if (metricas && metricas.percentualPresenca < 75) {
+    if (teamMetricas && teamMetricas.percentualPresenca < 75) {
       alertas.push({
         id: 'presenca-baixa',
         titulo: 'Presença geral abaixo do ideal',
-        descricao: `O período está com ${metricas.percentualPresenca}% de presença. Vale revisar faltas recentes e escala da equipe.`,
+        descricao: `A equipe está com ${teamMetricas.percentualPresenca}% de presença ${periodoLabel}. Vale revisar faltas recentes e escala.`,
         tipo: 'danger',
       });
     }
 
-    if (metricas && metricas.encerramentosAutomaticos >= 3) {
+    if (teamMetricas && teamMetricas.encerramentosAutomaticos >= 3) {
       alertas.push({
         id: 'encerramentos-auto',
         titulo: 'Muitos encerramentos automáticos',
-        descricao: `${metricas.encerramentosAutomaticos} ponto(s) foram encerrados automaticamente no período.`,
+        descricao: `${teamMetricas.encerramentosAutomaticos} ponto(s) da equipe foram encerrados automaticamente ${periodoLabel}.`,
         tipo: 'warning',
       });
     }
 
-    const faltosos = rankingFuncionarios.filter((funcionario) => funcionario.faltas > 0);
+    const faltosos = rankingEquipePeriodo.filter((funcionario) => funcionario.faltas > 0);
     if (faltosos.length > 0) {
-      const top = faltosos[0]!;
+      const top = [...faltosos].sort((a, b) => b.faltas - a.faltas || b.atrasos - a.atrasos)[0]!;
       alertas.push({
         id: 'faltas-funcionario',
-        titulo: 'Funcionário com faltas registradas',
-        descricao: `${top.nome} acumula ${top.faltas} falta(s) no período analisado.`,
+        titulo: 'Faltas precisam de atenção na equipe',
+        descricao: `${top.nome} acumula ${top.faltas} falta(s) ${periodoLabel}, com jornada padrão ${top.jornadaEntrada} às ${top.jornadaSaida}.`,
         tipo: top.faltas >= 2 ? 'danger' : 'warning',
       });
     }
 
-    const baixaPontualidade = rankingFuncionarios.find((funcionario) => funcionario.diasPresente >= 2 && funcionario.percentualPontualidade < 70);
-    if (baixaPontualidade) {
-      alertas.push({
-        id: 'pontualidade-baixa',
-        titulo: 'Pontualidade em atenção',
-        descricao: `${baixaPontualidade.nome} está com ${baixaPontualidade.percentualPontualidade}% de pontualidade no período.`,
-        tipo: 'warning',
-      });
-    }
-
-    if ((anomalias?.length ?? 0) > 0) {
+    if ((teamAnomalias?.length ?? 0) > 0) {
       alertas.push({
         id: 'anomalias-detectadas',
         titulo: 'Anomalias detectadas nos registros',
-        descricao: `${anomalias!.length} anomalia(s) exigem revisão administrativa.`,
+        descricao: `${teamAnomalias!.length} anomalia(s) da equipe exigem revisão administrativa ${periodoLabel}.`,
         tipo: 'info',
       });
     }
 
-    return alertas.slice(0, 4);
-  }, [metricas, rankingFuncionarios, anomalias]);
+    rankingEquipePeriodo
+      .slice()
+      .sort((a, b) => a.nome.localeCompare(b.nome))
+      .forEach((funcionario) => {
+        if (funcionario.faltas <= 1) {
+          alertas.push({
+            id: `merito-${funcionario.id}`,
+            titulo: `Mérito de assiduidade · ${funcionario.nome}`,
+            descricao: `${funcionario.faltas === 0 ? 'Nenhuma falta' : 'Apenas 1 falta'} e ${funcionario.atrasos} atraso(s) ${periodoLabel}. Jornada padrão ${funcionario.jornadaEntrada} às ${funcionario.jornadaSaida}.`,
+            tipo: 'success',
+          });
+        }
+
+        if (funcionario.faltas > 0) {
+          alertas.push({
+            id: `faltas-30d-${funcionario.id}`,
+            titulo: `Faltas registradas · ${funcionario.nome}`,
+            descricao: `${funcionario.faltas} falta(s) ${periodoLabel}. Acompanhar presença e possíveis ajustes de escala.`,
+            tipo: funcionario.faltas >= 2 ? 'danger' : 'warning',
+          });
+        }
+
+        if (funcionario.atrasos > 0) {
+          alertas.push({
+            id: `atrasos-30d-${funcionario.id}`,
+            titulo: `Atrasos no período · ${funcionario.nome}`,
+            descricao: `${funcionario.atrasos} atraso(s) ${periodoLabel} para a jornada ${funcionario.jornadaEntrada} às ${funcionario.jornadaSaida}.`,
+            tipo: funcionario.atrasos >= 3 ? 'danger' : 'warning',
+          });
+        }
+
+        if (funcionario.encerramentosAutomaticos > 0) {
+          alertas.push({
+            id: `enc-auto-func-${funcionario.id}`,
+            titulo: `Encerramentos automáticos · ${funcionario.nome}`,
+            descricao: `${funcionario.encerramentosAutomaticos} encerramento(s) automáticos ${periodoLabel}. Vale reforçar a rotina de saída.`,
+            tipo: 'info',
+          });
+        }
+      });
+
+    return alertas;
+  }, [teamMetricas, rankingEquipePeriodo, teamAnomalias, periodoLabel]);
 
   // Guard: redireciona se não for admin (depois de todos os hooks)
   if (!isAdmin) return <Navigate to="/" replace />;
@@ -492,6 +763,7 @@ export function PontoAnalyticsPage() {
     { value: 'hoje', label: 'Hoje' },
     { value: 'semana', label: 'Esta Semana' },
     { value: 'mes', label: 'Este Mês' },
+    { value: 'mes-anterior', label: 'Mês Anterior' },
     { value: 'semestre', label: 'Semestre' },
     { value: 'ano', label: 'Este Ano' },
     { value: 'custom', label: '📅 Personalizado' },
@@ -527,13 +799,25 @@ export function PontoAnalyticsPage() {
             )}
 
             <Select value={filterUserId} onValueChange={setFilterUserId}>
-              <SelectTrigger style={{ width: 220 }}>
+              <SelectTrigger className="pa-filter-select" style={{ width: '100%', maxWidth: 220 }}>
                 <SelectValue placeholder="Todos os funcionários" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Todos os funcionários</SelectItem>
-                {activeUsers.map((u) => (
+                {analyticsUsers.map((u) => (
                   <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <Select value={filterLoja} onValueChange={(value) => setFilterLoja(value as 'all' | Loja)}>
+              <SelectTrigger className="pa-filter-select" style={{ width: '100%', maxWidth: 220 }}>
+                <SelectValue placeholder="Todas as lojas" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todas as lojas</SelectItem>
+                {LOJA_OPTIONS.map((loja) => (
+                  <SelectItem key={loja.value} value={loja.value}>{loja.label}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -587,10 +871,12 @@ export function PontoAnalyticsPage() {
               </div>
             </CardHeader>
             <CardContent>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 12 }}>
+              <div className="pa-alert-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(240px, 100%), 1fr))', gap: 12 }}>
                 {alertasGerenciais.map((alerta) => {
                   const colors = alerta.tipo === 'danger'
                     ? { bg: 'var(--red-dim)', color: 'var(--red)', border: 'var(--red)' }
+                    : alerta.tipo === 'success'
+                      ? { bg: 'var(--green-dim)', color: 'var(--green)', border: 'var(--green)' }
                     : alerta.tipo === 'warning'
                       ? { bg: 'var(--yellow-dim)', color: 'var(--yellow)', border: 'var(--yellow)' }
                       : { bg: 'var(--blue-dim)', color: 'var(--blue)', border: 'var(--blue)' };
@@ -624,64 +910,128 @@ export function PontoAnalyticsPage() {
               </div>
             </CardHeader>
             <CardContent>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 14 }}>
+                {[
+                  { label: 'Presença', status: 'PRESENTE' as DiaCalendarioStatus },
+                  { label: 'Folga', status: 'FOLGA' as DiaCalendarioStatus },
+                  { label: 'Falta', status: 'FALTA' as DiaCalendarioStatus },
+                ].map((item) => {
+                  const visual = getStatusCalendarioVisual(item.status);
+                  return (
+                    <span
+                      key={item.label}
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 8,
+                        padding: '6px 10px',
+                        borderRadius: 999,
+                        background: 'var(--bg3)',
+                        border: '1px solid var(--border2)',
+                        fontSize: 12,
+                        color: 'var(--text2)',
+                      }}
+                    >
+                      <span style={{ width: 10, height: 10, borderRadius: 999, background: visual.bg, border: `1px solid ${visual.border}` }} />
+                      {item.label}
+                    </span>
+                  );
+                })}
+              </div>
+
+              <div className="pa-ranking-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(320px, 100%), 1fr))', gap: 14 }}>
                 {rankingFuncionarios.map((funcionario) => {
-                  const medalha = funcionario.posicao === 1 ? '🥇' : funcionario.posicao === 2 ? '🥈' : funcionario.posicao === 3 ? '🥉' : '•';
+                  const medalha = getMedalha(funcionario.posicao ?? 0);
                   return (
                     <div
                       key={funcionario.id}
+                      className="pa-ranking-card"
                       style={{
-                        display: 'grid',
-                        gridTemplateColumns: 'minmax(220px, 1.6fr) repeat(5, minmax(90px, 1fr))',
-                        gap: 12,
-                        alignItems: 'center',
-                        padding: '12px 14px',
-                        borderRadius: 12,
-                        background: 'var(--bg3)',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: 16,
+                        padding: '16px 18px',
+                        borderRadius: 18,
+                        background: 'linear-gradient(180deg, rgba(255,255,255,0.02), transparent)',
                         border: '1px solid var(--border2)',
                       }}
                     >
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
-                        <span style={{ fontSize: 18, width: 24, textAlign: 'center' }}>{medalha}</span>
-                        <div
-                          className="bg-dynamic flex h-8 w-8 items-center justify-center rounded-full text-12 font-bold text-white shrink-0"
-                          data-color={funcionario.avatarColor}
-                        >
-                          {funcionario.initials}
-                        </div>
-                        <div style={{ minWidth: 0 }}>
-                          <div style={{ color: 'var(--text1)', fontWeight: 700, fontSize: 13, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                            {funcionario.posicao}º · {funcionario.nome}
+                      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+                          <span style={{ fontSize: 18, width: 24, textAlign: 'center' }}>{medalha}</span>
+                          <div
+                            className="bg-dynamic flex h-10 w-10 items-center justify-center rounded-full text-12 font-bold text-white shrink-0"
+                            data-color={funcionario.avatarColor}
+                          >
+                            {funcionario.initials}
                           </div>
-                          <div style={{ color: 'var(--text2)', fontSize: 11 }}>
-                            {funcionario.diasPresente}/{funcionario.diasEsperados} jornadas registradas
+                          <div style={{ minWidth: 0 }}>
+                            <div style={{ color: 'var(--text1)', fontWeight: 700, fontSize: 14, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                              {funcionario.posicao}º · {funcionario.nome}
+                            </div>
+                            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 4 }}>
+                              <span style={{ color: 'var(--text2)', fontSize: 11 }}>
+                                {funcionario.diasPresente}/{funcionario.diasEsperados} jornadas registradas
+                              </span>
+                              <span style={{ color: 'var(--text3)', fontSize: 11 }}>•</span>
+                              <span style={{ color: 'var(--text2)', fontSize: 11 }}>{LOJA_LABELS[funcionario.loja]}</span>
+                              <span style={{ color: 'var(--text3)', fontSize: 11 }}>•</span>
+                              <span style={{ color: 'var(--text2)', fontSize: 11 }}>{funcionario.jornadaEntrada} às {funcionario.jornadaSaida}</span>
+                            </div>
                           </div>
+                        </div>
+                        <div style={{ padding: '6px 10px', borderRadius: 999, background: 'var(--bg3)', border: '1px solid var(--border2)', fontSize: 12, color: 'var(--text2)' }}>
+                          Score {funcionario.score}
                         </div>
                       </div>
 
-                      <div>
-                        <div style={{ color: 'var(--text2)', fontSize: 10, marginBottom: 2 }}>Presença</div>
-                        <div style={{ color: 'var(--green)', fontWeight: 700 }}>{formatarPercentual(funcionario.percentualPresenca)}</div>
+                      <div className="pa-mini-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: 10 }}>
+                        <ResumoCardMini label="Presença" value={formatarPercentual(funcionario.percentualPresenca)} color="var(--green)" />
+                        <ResumoCardMini label="Pontualidade" value={formatarPercentual(funcionario.percentualPontualidade)} color="var(--blue)" />
+                        <ResumoCardMini label="Faltas" value={String(funcionario.faltas)} color={funcionario.faltas > 0 ? 'var(--red)' : 'var(--text1)'} />
+                        <ResumoCardMini label="Atrasos" value={String(funcionario.atrasos)} color={funcionario.atrasos > 0 ? 'var(--yellow)' : 'var(--text1)'} />
+                        <ResumoCardMini label="Enc. auto" value={String(funcionario.encerramentosAutomaticos)} color={funcionario.encerramentosAutomaticos > 0 ? 'var(--yellow)' : 'var(--text1)'} />
+                        <ResumoCardMini label="Horas" value={funcionario.horasTotais} color="var(--accent)" mono />
                       </div>
 
                       <div>
-                        <div style={{ color: 'var(--text2)', fontSize: 10, marginBottom: 2 }}>Pontualidade</div>
-                        <div style={{ color: 'var(--blue)', fontWeight: 700 }}>{formatarPercentual(funcionario.percentualPontualidade)}</div>
-                      </div>
-
-                      <div>
-                        <div style={{ color: 'var(--text2)', fontSize: 10, marginBottom: 2 }}>Faltas</div>
-                        <div style={{ color: funcionario.faltas > 0 ? 'var(--red)' : 'var(--text1)', fontWeight: 700 }}>{funcionario.faltas}</div>
-                      </div>
-
-                      <div>
-                        <div style={{ color: 'var(--text2)', fontSize: 10, marginBottom: 2 }}>Enc. auto</div>
-                        <div style={{ color: funcionario.encerramentosAutomaticos > 0 ? 'var(--yellow)' : 'var(--text1)', fontWeight: 700 }}>{funcionario.encerramentosAutomaticos}</div>
-                      </div>
-
-                      <div>
-                        <div style={{ color: 'var(--text2)', fontSize: 10, marginBottom: 2 }}>Horas</div>
-                        <div style={{ color: 'var(--accent)', fontWeight: 700, fontFamily: 'monospace' }}>{funcionario.horasTotais}</div>
+                        <div style={{ color: 'var(--text3)', fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 10 }}>
+                          Calendário recente do período
+                        </div>
+                        <div className="pa-calendar-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', gap: 10 }}>
+                          {funcionario.diasCalendario.map((dia) => {
+                            const visual = getStatusCalendarioVisual(dia.status);
+                            return (
+                              <div
+                                key={`${funcionario.id}-${dia.dateKey}`}
+                                title={`${formatarData(`${dia.dateKey}T12:00:00.000Z`)} · ${visual.label}${dia.entrada ? ` · ${fmtTime(dia.entrada)}` : ''}`}
+                                style={{
+                                  borderRadius: 16,
+                                  border: `1px solid ${visual.border}`,
+                                  background: visual.bg,
+                                  padding: '12px 10px',
+                                  minHeight: 86,
+                                  display: 'flex',
+                                  flexDirection: 'column',
+                                  justifyContent: 'space-between',
+                                  gap: 8,
+                                  boxShadow: `inset 0 0 0 1px ${visual.border}22`,
+                                }}
+                              >
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 6 }}>
+                                  <div>
+                                    <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', letterSpacing: '0.08em' }}>{getDiaAbreviado(dia.dateKey)}</div>
+                                    <span style={{ fontSize: 14, fontWeight: 800, color: visual.color }}>{dia.dateKey.slice(8, 10)}</span>
+                                  </div>
+                                  <span style={{ width: 10, height: 10, borderRadius: 999, background: visual.color, boxShadow: `0 0 12px ${visual.color}` }} />
+                                </div>
+                                <div style={{ fontSize: 11, color: visual.color, fontWeight: 700, lineHeight: 1.3 }}>
+                                  {dia.status === 'PRESENTE' ? fmtTime(dia.entrada) : visual.label}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
                       </div>
                     </div>
                   );
@@ -705,7 +1055,7 @@ export function PontoAnalyticsPage() {
               <CardContent>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                   {/* Destaques */}
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: 12 }}>
+                  <div className="pa-insights-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(250px, 100%), 1fr))', gap: 12 }}>
                     {insightsData.destaques.map((d, i) => (
                       <div
                         key={i}
@@ -738,7 +1088,7 @@ export function PontoAnalyticsPage() {
 
                   {/* Funcionários destaque */}
                   {insightsData.funcionarioDestaque && (
-                    <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+                    <div className="pa-highlight-strip" style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
                       {insightsData.funcionarioDestaque.melhorPresenca && (
                         <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', borderRadius: 6, background: 'var(--bg3)', border: '1px solid var(--border2)', fontSize: 12 }}>
                           <Award size={14} style={{ color: 'var(--green)' }} />
@@ -1214,7 +1564,7 @@ export function PontoAnalyticsPage() {
                     <strong>{editPonto.user.name}</strong>
                   </p>
                 )}
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <div className="pa-edit-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                   <div>
                     <label className="form-label">Data</label>
                     <Input type="date" value={editDate} onChange={(e) => setEditDate(e.target.value)} />
@@ -1265,6 +1615,29 @@ export function PontoAnalyticsPage() {
 
       </div>
     </>
+  );
+}
+
+function ResumoCardMini({
+  label,
+  value,
+  color,
+  mono = false,
+}: {
+  label: string;
+  value: string;
+  color: string;
+  mono?: boolean;
+}) {
+  return (
+    <div style={{ border: '1px solid var(--border2)', borderRadius: 14, padding: 12, background: 'var(--bg2)' }}>
+      <div style={{ color: 'var(--text3)', fontSize: 10, marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+        {label}
+      </div>
+      <div style={{ color, fontWeight: 700, fontFamily: mono ? 'monospace' : 'inherit', fontSize: 18 }}>
+        {value}
+      </div>
+    </div>
   );
 }
 

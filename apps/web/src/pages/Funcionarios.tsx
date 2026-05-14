@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Topbar } from '@/components/layout/Topbar';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -25,7 +25,8 @@ import { useArtes } from '@/hooks/useArtes';
 import { useAuth } from '@/hooks/useAuth';
 import { useToastStore } from '@/stores/toastStore';
 import { getAgoraSP } from '@/utils/timezone';
-import type { User, Role, CreateUserRequest, Ponto, Arte } from '@/types';
+import type { User, Role, Loja, CreateUserRequest, Ponto, Arte } from '@/types';
+import { LOJA_COLORS, LOJA_LABELS, LOJA_OPTIONS } from '@/utils/lojas';
 import {
   Plus,
   Edit2,
@@ -36,6 +37,8 @@ import {
   Users as UsersIcon,
   Palette,
   Trash2,
+  Clock3,
+  Mail,
 } from 'lucide-react';
 
 const AVATAR_COLORS = [
@@ -47,6 +50,10 @@ const ROLE_CONFIG: Record<Role, { label: string; color: string; icon: typeof Shi
   ADMIN: { label: 'Administrador', color: '#f5c542', icon: ShieldCheck },
   EMPLOYEE: { label: 'Funcionário', color: '#4db8ff', icon: Shield },
 };
+
+function formatJornada(jornadaEntrada: string, jornadaSaida: string): string {
+  return `${jornadaEntrada} às ${jornadaSaida}`;
+}
 
 // ===== Modal de Criação / Edição =====
 function UserFormModal({
@@ -66,14 +73,33 @@ function UserFormModal({
     email: string;
     password: string;
     role: Role;
+    loja: Loja;
+    jornadaEntrada: string;
+    jornadaSaida: string;
     avatarColor: string;
   }>({
     name: editUser?.name ?? '',
     email: editUser?.email ?? '',
     password: '',
     role: editUser?.role ?? 'EMPLOYEE',
+    loja: editUser?.loja ?? 'PAPER_OFFICE_I',
+    jornadaEntrada: editUser?.jornadaEntrada ?? '10:00',
+    jornadaSaida: editUser?.jornadaSaida ?? '18:30',
     avatarColor: editUser?.avatarColor ?? AVATAR_COLORS[Math.floor(Math.random() * AVATAR_COLORS.length)] ?? '#6c63ff',
   });
+
+  useEffect(() => {
+    setForm({
+      name: editUser?.name ?? '',
+      email: editUser?.email ?? '',
+      password: '',
+      role: editUser?.role ?? 'EMPLOYEE',
+      loja: editUser?.loja ?? 'PAPER_OFFICE_I',
+      jornadaEntrada: editUser?.jornadaEntrada ?? '10:00',
+      jornadaSaida: editUser?.jornadaSaida ?? '18:30',
+      avatarColor: editUser?.avatarColor ?? AVATAR_COLORS[Math.floor(Math.random() * AVATAR_COLORS.length)] ?? '#6c63ff',
+    });
+  }, [editUser]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -83,6 +109,9 @@ function UserFormModal({
         name: form.name,
         email: form.email,
         role: form.role,
+        loja: form.loja,
+        jornadaEntrada: form.jornadaEntrada,
+        jornadaSaida: form.jornadaSaida,
         avatarColor: form.avatarColor,
       };
       if (form.password) updateData.password = form.password;
@@ -93,6 +122,9 @@ function UserFormModal({
         email: form.email,
         password: form.password,
         role: form.role,
+        loja: form.loja,
+        jornadaEntrada: form.jornadaEntrada,
+        jornadaSaida: form.jornadaSaida,
         avatarColor: form.avatarColor,
       });
     }
@@ -103,6 +135,9 @@ function UserFormModal({
       email: '',
       password: '',
       role: 'EMPLOYEE',
+      loja: 'PAPER_OFFICE_I',
+      jornadaEntrada: '10:00',
+      jornadaSaida: '18:30',
       avatarColor: AVATAR_COLORS[Math.floor(Math.random() * AVATAR_COLORS.length)] ?? '#6c63ff',
     });
   };
@@ -111,7 +146,7 @@ function UserFormModal({
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-lg">
+      <DialogContent className="max-w-lg func-form-dialog">
         <DialogHeader>
           <DialogTitle>{editUser ? 'Editar Funcionário' : 'Novo Funcionário'}</DialogTitle>
           <DialogDescription>
@@ -169,6 +204,42 @@ function UserFormModal({
           </div>
 
           <div className="space-y-2">
+            <Label>Loja *</Label>
+            <Select value={form.loja} onValueChange={(v) => setForm({ ...form, loja: v as Loja })}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {LOJA_OPTIONS.map((loja) => (
+                  <SelectItem key={loja.value} value={loja.value}>{loja.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label>Entrada padrão *</Label>
+              <Input
+                type="time"
+                required
+                value={form.jornadaEntrada}
+                onChange={(e) => setForm({ ...form, jornadaEntrada: e.target.value })}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label>Saída padrão *</Label>
+              <Input
+                type="time"
+                required
+                value={form.jornadaSaida}
+                onChange={(e) => setForm({ ...form, jornadaSaida: e.target.value })}
+              />
+            </div>
+          </div>
+
+          <div className="space-y-2">
             <Label>Cor do Avatar</Label>
             <div className="flex gap-2 flex-wrap">
               {AVATAR_COLORS.map((color) => (
@@ -217,9 +288,15 @@ export function FuncionariosPage() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editUser, setEditUser] = useState<User | null>(null);
   const [confirmRemove, setConfirmRemove] = useState<{ id: string; name: string; active: boolean } | null>(null);
+  const [filterLoja, setFilterLoja] = useState<'all' | Loja>('all');
 
-  const activeUsers = users?.filter((u) => u.active) ?? [];
   const allUsers = users ?? [];
+  const filteredUsers = useMemo(
+    () => allUsers.filter((user) => filterLoja === 'all' || user.loja === filterLoja),
+    [allUsers, filterLoja],
+  );
+  const filteredActiveUsers = filteredUsers.filter((u) => u.active);
+  const filteredUserIds = new Set(filteredUsers.map((u) => u.id));
 
   // Pontos de hoje para calcular status
   const todayStr = getAgoraSP().toFormat('yyyy-MM-dd');
@@ -228,12 +305,12 @@ export function FuncionariosPage() {
   }) ?? [];
 
   // Artes ativas por responsável
-  const artesAtivas = artes?.filter((a: Arte) => a.status !== 'DONE') ?? [];
+  const artesAtivas = artes?.filter((a: Arte) => a.status !== 'DONE' && filteredUserIds.has(a.responsavelId)) ?? [];
 
   // Stats
-  const totalCount = allUsers.length;
-  const activeCount = activeUsers.length;
-  const presentesToday = pontosHoje.filter((p) => p.entrada).length;
+  const totalCount = filteredUsers.length;
+  const activeCount = filteredActiveUsers.length;
+  const presentesToday = filteredActiveUsers.filter((user) => pontosHoje.some((p) => p.userId === user.id && !!p.entrada)).length;
   const artesAtivasTotal = artesAtivas.length;
   const ausentesHoje = activeCount - presentesToday;
 
@@ -315,20 +392,110 @@ export function FuncionariosPage() {
         </div>
 
         {/* Header + Botão novo */}
-        <div className="flex items-center justify-between">
-          <h3
-            className="section-title"
-          >
-            Equipe
-          </h3>
-          <Button onClick={() => setShowCreateModal(true)} size="lg">
+        <div className="func-toolbar">
+          <div className="func-toolbar-controls">
+            <h3 className="section-title">Equipe</h3>
+            <Select value={filterLoja} onValueChange={(value) => setFilterLoja(value as 'all' | Loja)}>
+              <SelectTrigger className="mobile-select func-filter-select" style={{ width: '100%', maxWidth: 220 }}>
+                <SelectValue placeholder="Filtrar por loja" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todas as lojas</SelectItem>
+                {LOJA_OPTIONS.map((loja) => (
+                  <SelectItem key={loja.value} value={loja.value}>{loja.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <Button onClick={() => setShowCreateModal(true)} size="lg" className="func-create-btn">
             <Plus size={20} />
             Novo Funcionário
           </Button>
         </div>
 
+        <div className="func-profile-grid">
+          {filteredActiveUsers.map((u) => {
+            const pontoStatus = getUserPontoStatus(u.id);
+            const artesCount = getUserArtesAtivas(u.id);
+            return (
+              <Card key={`ficha-${u.id}`} className="func-profile-card">
+                <CardContent className="func-profile-card-body p-5 flex flex-col gap-4">
+                  <div className="func-profile-header">
+                    <div className="func-profile-header-main">
+                      <div
+                        className="bg-dynamic flex h-11 w-11 items-center justify-center rounded-full text-10 font-bold text-white shrink-0"
+                        data-color={u.avatarColor}
+                      >
+                        {u.initials}
+                      </div>
+                      <div className="min-w-0">
+                        <div className="func-profile-name dash-name truncate">{u.name}</div>
+                        <div className="func-profile-sub truncate">{ROLE_CONFIG[u.role].label} · {LOJA_LABELS[u.loja]}</div>
+                      </div>
+                    </div>
+                    <span
+                      className="func-status-pill inline-block rounded-full px-2-5 py-1 text-18 font-semibold font-mono tracking-wide"
+                      style={{
+                        background: pontoStatus.dimColor,
+                        color: pontoStatus.color,
+                        border: `1px solid ${pontoStatus.color}`,
+                      }}
+                    >
+                      {pontoStatus.label}
+                    </span>
+                  </div>
+
+                  <div className="func-profile-mini-grid">
+                    <div className="func-stat-mini">
+                      <div className="func-mini-label">Jornada padrão</div>
+                      <div className="func-mini-value func-mini-value-accent">{formatJornada(u.jornadaEntrada, u.jornadaSaida)}</div>
+                    </div>
+                    <div className="func-stat-mini">
+                      <div className="func-mini-label">Artes ativas</div>
+                      <div className="func-mini-value">{artesCount}</div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-3 flex-wrap func-profile-meta">
+                    <span className="inline-flex items-center gap-1 func-profile-meta-item"><Mail size={13} /> {u.email}</span>
+                    <span className="inline-flex items-center gap-1 func-profile-meta-item"><Clock3 size={13} /> Desde {formatDesde(u.createdAt)}</span>
+                  </div>
+
+                  {u.id !== currentUser?.id && (
+                    <div className="func-card-actions">
+                      <button
+                        onClick={() => setEditUser(u)}
+                        className="func-card-action-btn"
+                        title="Editar"
+                      >
+                        <Edit2 size={14} />
+                        Editar
+                      </button>
+                      <button
+                        onClick={() => handleRemove(u)}
+                        className="func-card-action-btn func-card-action-btn-danger"
+                        title="Remover"
+                      >
+                        <Trash2 size={14} />
+                        Remover
+                      </button>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            );
+          })}
+          {filteredActiveUsers.length === 0 && (
+            <Card>
+              <CardContent className="p-6" style={{ color: 'var(--text2)', fontSize: 15 }}>
+                Nenhuma ficha ativa para a loja selecionada.
+              </CardContent>
+            </Card>
+          )}
+        </div>
+
         {/* Tabela */}
-        <Card>
+        <Card className="func-table-card">
           <CardContent className="p-0">
             {isLoading ? (
               <div className="space-y-2 p-4">
@@ -336,17 +503,17 @@ export function FuncionariosPage() {
                   <div key={i} className="skeleton h-12 w-full" />
                 ))}
               </div>
-            ) : allUsers.length === 0 ? (
+            ) : filteredUsers.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-16 text-center text-muted">
                 <UserX size={36} className="mb-2 opacity-30" />
-                <p className="text-sm">Nenhum funcionário cadastrado.</p>
+                <p className="text-sm">Nenhum funcionário encontrado para a loja selecionada.</p>
               </div>
             ) : (
               <div className="table-wrapper overflow-x-auto">
                 <table className="w-full text-left table-text">
                   <thead>
                     <tr className="table-header-row">
-                      {['NOME', 'CARGO', 'STATUS HOJE', 'ARTES ATIVAS', 'DESDE', 'AÇÕES'].map((h) => (
+                      {['NOME', 'CARGO', 'LOJA', 'JORNADA', 'STATUS HOJE', 'ARTES ATIVAS', 'DESDE', 'AÇÕES'].map((h) => (
                         <th
                           key={h}
                           className="th-cell"
@@ -357,7 +524,7 @@ export function FuncionariosPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {allUsers.map((u) => {
+                    {filteredUsers.map((u) => {
                       const pontoStatus = getUserPontoStatus(u.id);
                       const artesCount = getUserArtesAtivas(u.id);
                       const roleConfig = ROLE_CONFIG[u.role];
@@ -377,10 +544,10 @@ export function FuncionariosPage() {
                                 {u.initials}
                               </div>
                               <div>
-                                <span className="block text-21 font-semibold dash-name">
+                                <span className="block func-table-name dash-name">
                                   {u.name}
                                 </span>
-                                <span className="block text-19 text-muted">
+                                <span className="block func-table-email">
                                   {u.email}
                                 </span>
                               </div>
@@ -398,6 +565,25 @@ export function FuncionariosPage() {
                               }}
                             >
                               {roleConfig.label}
+                            </span>
+                          </td>
+
+                          <td className="py-3 px-4">
+                            <span
+                              className="inline-flex items-center gap-1 rounded-full px-2-5 py-1 text-18 font-semibold font-mono tracking-wide"
+                              style={{
+                                background: `color-mix(in srgb, ${LOJA_COLORS[u.loja]} 15%, transparent)`,
+                                color: LOJA_COLORS[u.loja],
+                                border: `1px solid ${LOJA_COLORS[u.loja]}`,
+                              }}
+                            >
+                              {LOJA_LABELS[u.loja]}
+                            </span>
+                          </td>
+
+                          <td className="py-3 px-4">
+                            <span className="inline-flex items-center gap-1 rounded-full px-2-5 py-1 text-18 font-semibold font-mono tracking-wide" style={{ background: 'var(--bg3)', color: 'var(--accent)', border: '1px solid var(--border2)' }}>
+                              {formatJornada(u.jornadaEntrada, u.jornadaSaida)}
                             </span>
                           </td>
 
@@ -425,14 +611,14 @@ export function FuncionariosPage() {
 
                           {/* ARTES ATIVAS */}
                           <td className="py-3 px-4">
-                            <span className="font-mono font-semibold" style={{ color: artesCount > 0 ? 'var(--accent)' : 'var(--text3)' }}>
+                            <span className="font-mono font-semibold func-table-number" style={{ color: artesCount > 0 ? 'var(--accent)' : 'var(--text2)' }}>
                               {artesCount}
                             </span>
                           </td>
 
                           {/* DESDE */}
                           <td className="py-3 px-4">
-                            <span className="font-mono font-semibold text-20 text-secondary">
+                            <span className="font-mono font-semibold text-20" style={{ color: 'var(--text2)' }}>
                               {formatDesde(u.createdAt)}
                             </span>
                           </td>

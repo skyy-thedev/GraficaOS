@@ -16,13 +16,26 @@ import { fecharPontosAbertos } from './jobs/fecharPontos';
 
 const app = express();
 
+const allowedOrigins = Array.from(new Set([
+  env.FRONTEND_URL,
+  ...env.FRONTEND_URLS.split(',').map((origin) => origin.trim()).filter(Boolean),
+]));
+
 // Log CORS origin para debug em produção
 console.log(`🌐 CORS origin configurado: ${env.FRONTEND_URL}`);
+console.log(`🌐 CORS origins permitidos: ${allowedOrigins.join(', ')}`);
 console.log(`🔧 NODE_ENV: ${env.NODE_ENV}`);
 
 // Middlewares globais
 app.use(cors({
-  origin: env.FRONTEND_URL,
+  origin: (origin, callback) => {
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+      return;
+    }
+
+    callback(new Error(`Origin não permitida pelo CORS: ${origin}`));
+  },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],

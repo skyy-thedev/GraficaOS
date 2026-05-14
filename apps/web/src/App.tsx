@@ -12,12 +12,14 @@ import { GestaoOperacionalPage } from '@/pages/GestaoOperacional';
 import { ClientesRecorrentesPage } from '@/pages/ClientesRecorrentes';
 import { ChecklistPage } from '@/pages/ChecklistDiario';
 import { FuncionariosPage } from '@/pages/Funcionarios';
+import { ValidarComprovantePage } from '@/pages/ValidarComprovante';
 
 export function App() {
   return (
     <Routes>
       {/* Rota pública */}
       <Route path="/login" element={<LoginPage />} />
+      <Route path="/validar-comprovante/:token" element={<ValidarComprovantePage />} />
 
       {/* Rotas protegidas */}
       <Route element={<ProtectedRoute />}>

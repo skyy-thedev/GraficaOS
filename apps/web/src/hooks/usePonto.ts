@@ -48,7 +48,7 @@ export function useBaterPonto() {
   });
 }
 
-export function useRelatorio(params: { userId?: string; startDate: string; endDate: string }) {
+export function useRelatorio(params: { userId?: string; loja?: import('@/types').Loja; startDate: string; endDate: string }) {
   return useQuery({
     queryKey: ['relatorio', params],
     queryFn: () => pontosApi.relatorio(params),
@@ -56,7 +56,7 @@ export function useRelatorio(params: { userId?: string; startDate: string; endDa
   });
 }
 
-export function usePontoMetricas(params: { userId?: string; startDate: string; endDate: string }) {
+export function usePontoMetricas(params: { userId?: string; loja?: import('@/types').Loja; startDate: string; endDate: string }) {
   return useQuery({
     queryKey: ['ponto-metricas', params],
     queryFn: () => pontosApi.metricas(params),
@@ -65,7 +65,7 @@ export function usePontoMetricas(params: { userId?: string; startDate: string; e
   });
 }
 
-export function useAnomalias(params: { userId?: string; startDate: string; endDate: string }) {
+export function useAnomalias(params: { userId?: string; loja?: import('@/types').Loja; startDate: string; endDate: string }) {
   return useQuery({
     queryKey: ['ponto-anomalias', params],
     queryFn: () => pontosApi.anomalias(params),
@@ -74,7 +74,7 @@ export function useAnomalias(params: { userId?: string; startDate: string; endDa
   });
 }
 
-export function useInsights(params: { startDate: string; endDate: string }) {
+export function useInsights(params: { startDate: string; endDate: string; loja?: import('@/types').Loja }) {
   return useQuery({
     queryKey: ['ponto-insights', params],
     queryFn: () => pontosApi.insights(params),

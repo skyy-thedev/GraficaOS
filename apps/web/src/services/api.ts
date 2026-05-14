@@ -1,12 +1,26 @@
 import axios from 'axios';
 import { useAuthStore } from '@/stores/authStore';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3333';
+function resolveApiBase() {
+  const configuredApiUrl = import.meta.env.VITE_API_URL?.trim();
+
+  if (configuredApiUrl) {
+    return configuredApiUrl.replace(/\/+$/, '');
+  }
+
+  if (import.meta.env.DEV) {
+    return 'http://localhost:3333';
+  }
+
+  return '';
+}
+
+const API_BASE = resolveApiBase();
 
 export { API_BASE };
 
 const api = axios.create({
-  baseURL: `${API_BASE}/api`,
+  baseURL: API_BASE ? `${API_BASE}/api` : '/api',
   headers: {
     'Content-Type': 'application/json',
   },
@@ -35,7 +49,8 @@ api.interceptors.response.use(
 
       if (refreshToken) {
         try {
-          const response = await axios.post(`${API_BASE}/api/auth/refresh`, { refreshToken });
+          const refreshUrl = API_BASE ? `${API_BASE}/api/auth/refresh` : '/api/auth/refresh';
+          const response = await axios.post(refreshUrl, { refreshToken });
           const { token } = response.data;
 
           useAuthStore.getState().setToken(token);

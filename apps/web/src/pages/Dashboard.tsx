@@ -1,6 +1,6 @@
 import { Topbar } from '@/components/layout/Topbar';
 import { Card, CardContent } from '@/components/ui/card';
-import { Palette, Clock, TrendingUp, AlertTriangle, CheckCircle, Users, Eye, CheckSquare } from 'lucide-react';
+import { Palette, Clock, TrendingUp, AlertTriangle, CheckCircle, Users, Eye, CheckSquare, ClipboardList, BarChart3, CalendarDays, Factory, ArrowRight } from 'lucide-react';
 import { usePontos } from '@/hooks/usePonto';
 import { useArtes } from '@/hooks/useArtes';
 import { useUsers } from '@/hooks/useUsers';
@@ -61,6 +61,76 @@ export function DashboardPage() {
   const clTotal = checklistHoje?.length ?? 0;
   const clFeitos = checklistHoje?.filter((i) => i.feito).length ?? 0;
   const clPct = clTotal > 0 ? Math.round((clFeitos / clTotal) * 100) : 0;
+  const clPendentes = clTotal - clFeitos;
+  const ausentesHoje = Math.max(0, totalFuncionarios - new Set(pontosHoje.filter((p) => !!p.entrada).map((p) => p.userId)).size);
+  const meuPontoHoje = pontosHoje.find((p) => p.userId === user?.id) ?? null;
+  const minhasArtesAtivas = (artes ?? []).filter((arte) => arte.responsavelId === user?.id && arte.status !== 'DONE');
+  const minhasUrgentes = minhasArtesAtivas.filter((arte) => arte.urgencia === 'HIGH').length;
+
+  const quickActions = isAdmin
+    ? [
+        { title: 'Gestão de pontos', description: 'Revisar presença, folgas e ajustes do dia.', to: '/gestao-pontos', icon: ClipboardList, color: 'var(--accent)' },
+        { title: 'Analytics', description: 'Acompanhar méritos, faltas e atrasos da equipe.', to: '/ponto/analytics', icon: BarChart3, color: 'var(--blue)' },
+        { title: 'Agenda', description: 'Priorizar prazos, urgências e carga por responsável.', to: '/agenda-producao', icon: CalendarDays, color: 'var(--yellow)' },
+        { title: 'Operação', description: 'Ler gargalos, revisão e distribuição atual.', to: '/gestao-operacional', icon: Factory, color: 'var(--green)' },
+      ]
+    : [
+        { title: 'Registrar ponto', description: 'Abrir sua jornada e acompanhar o expediente.', to: '/ponto', icon: Clock, color: 'var(--accent)' },
+        { title: 'Checklist diário', description: 'Conferir pendências e concluir a rotina do dia.', to: '/checklist', icon: CheckSquare, color: 'var(--blue)' },
+        { title: 'Artes', description: 'Ver suas demandas e atualizar o Kanban.', to: '/artes', icon: Palette, color: 'var(--yellow)' },
+      ];
+
+  const resumoInteligente = isAdmin
+    ? [
+        {
+          id: 'equipe-hoje',
+          titulo: 'Equipe hoje',
+          descricao: `${funcionariosTrabalhando} trabalhando e ${ausentesHoje} ausente(s) no momento.`,
+          acao: 'Abrir gestão de pontos',
+          to: '/gestao-pontos',
+        },
+        {
+          id: 'producao-critica',
+          titulo: 'Produção crítica',
+          descricao: `${artesUrgentes.length} urgência(s) e ${artesReview} peça(s) em revisão aguardando atenção.`,
+          acao: 'Ir para agenda',
+          to: '/agenda-producao',
+        },
+        {
+          id: 'checklist-hoje',
+          titulo: 'Checklist do dia',
+          descricao: `${clFeitos}/${clTotal} itens concluídos${clPendentes > 0 ? `, com ${clPendentes} pendente(s)` : ' e rotina em dia'}.`,
+          acao: 'Ver checklist',
+          to: '/checklist',
+        },
+      ]
+    : [
+        {
+          id: 'meu-ponto',
+          titulo: 'Minha jornada',
+          descricao: meuPontoHoje?.saida
+            ? 'Seu ponto de hoje já foi concluído.'
+            : meuPontoHoje?.entrada
+              ? 'Seu expediente está em andamento. Confira a próxima batida.'
+              : 'Você ainda não registrou sua entrada hoje.',
+          acao: 'Abrir ponto',
+          to: '/ponto',
+        },
+        {
+          id: 'meu-checklist',
+          titulo: 'Minha rotina',
+          descricao: `${clFeitos}/${clTotal} item(ns) do checklist concluídos hoje.`,
+          acao: 'Abrir checklist',
+          to: '/checklist',
+        },
+        {
+          id: 'minhas-artes',
+          titulo: 'Minhas artes',
+          descricao: `${minhasArtesAtivas.length} demanda(s) ativas${minhasUrgentes > 0 ? `, sendo ${minhasUrgentes} urgente(s)` : ''}.`,
+          acao: 'Abrir artes',
+          to: '/artes',
+        },
+      ];
 
   // Artes em andamento (DOING + REVIEW)
   const artesDoingList = artes?.filter((a: Arte) => a.status === 'DOING' || a.status === 'REVIEW') ?? [];
@@ -74,7 +144,7 @@ export function DashboardPage() {
         {/* ===== STAT CARDS ===== */}
         <div className="dash-stats-grid">
           {isAdmin && (
-            <div className="dash-stat-card dash-stat-blue">
+            <div className="dash-stat-card dash-stat-blue interactive-card" data-glow="blue" onClick={() => navigate('/gestao-pontos')}>
               <div className="dash-stat-icon-wrap dash-stat-icon-blue">
                 <Users size={18} />
               </div>
@@ -86,7 +156,7 @@ export function DashboardPage() {
             </div>
           )}
 
-          <div className="dash-stat-card dash-stat-yellow">
+          <div className="dash-stat-card dash-stat-yellow interactive-card" data-glow="yellow" onClick={() => navigate(isAdmin ? '/agenda-producao' : '/artes')}>
             <div className="dash-stat-icon-wrap dash-stat-icon-yellow">
               <TrendingUp size={18} />
             </div>
@@ -96,7 +166,7 @@ export function DashboardPage() {
             </div>
           </div>
 
-          <div className="dash-stat-card dash-stat-red">
+          <div className="dash-stat-card dash-stat-red interactive-card" data-glow="red" onClick={() => navigate('/artes')}>
             <div className="dash-stat-icon-wrap dash-stat-icon-red">
               <AlertTriangle size={18} />
             </div>
@@ -106,7 +176,7 @@ export function DashboardPage() {
             </div>
           </div>
 
-          <div className="dash-stat-card dash-stat-purple">
+          <div className="dash-stat-card dash-stat-purple interactive-card" data-glow="accent" onClick={() => navigate(isAdmin ? '/gestao-operacional' : '/artes')}>
             <div className="dash-stat-icon-wrap dash-stat-icon-purple">
               <Eye size={18} />
             </div>
@@ -116,7 +186,7 @@ export function DashboardPage() {
             </div>
           </div>
 
-          <div className="dash-stat-card dash-stat-green">
+          <div className="dash-stat-card dash-stat-green interactive-card" data-glow="green" onClick={() => navigate('/artes')}>
             <div className="dash-stat-icon-wrap dash-stat-icon-green">
               <CheckCircle size={18} />
             </div>
@@ -127,8 +197,8 @@ export function DashboardPage() {
           </div>
 
           <div
-            className="dash-stat-card dash-stat-teal"
-            style={{ cursor: 'pointer' }}
+            className="dash-stat-card dash-stat-teal interactive-card"
+            data-glow="green"
             onClick={() => navigate('/checklist')}
           >
             <div className="dash-stat-icon-wrap dash-stat-icon-teal">
@@ -141,6 +211,55 @@ export function DashboardPage() {
             <span className="dash-stat-sub">{clFeitos}/{clTotal} itens</span>
           </div>
         </div>
+
+        <div className="grid gap-5" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))' }}>
+          {quickActions.map((action) => (
+            <Card key={action.to}>
+              <CardContent className="p-5 flex flex-col gap-4 interactive-card" data-glow="accent" onClick={() => navigate(action.to)}>
+                <div className="flex items-center justify-between gap-3">
+                  <div className="dash-stat-icon-wrap" style={{ background: 'var(--bg3)', color: action.color }}>
+                    <action.icon size={18} />
+                  </div>
+                  <ArrowRight size={16} style={{ color: 'var(--text3)' }} />
+                </div>
+                <div>
+                  <div style={{ fontWeight: 700, fontSize: 16, color: 'var(--text1)' }}>{action.title}</div>
+                  <div style={{ marginTop: 6, color: 'var(--text2)', fontSize: 13, lineHeight: 1.5 }}>{action.description}</div>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+
+        <Card>
+          <div className="dash-section-header">
+            <div className="dash-section-icon dash-section-icon-arte">
+              <AlertTriangle size={16} />
+            </div>
+            <h3 className="dash-section-title">Resumo Inteligente</h3>
+            <span className="dash-section-count">{resumoInteligente.length}</span>
+          </div>
+          <CardContent className="dash-section-body">
+            <div className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))' }}>
+              {resumoInteligente.map((item) => (
+                <div key={item.id} style={{ border: '1px solid var(--border2)', borderRadius: 16, background: 'var(--bg2)', padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  <div>
+                    <div style={{ fontWeight: 700, color: 'var(--text1)' }}>{item.titulo}</div>
+                    <div style={{ marginTop: 6, color: 'var(--text2)', fontSize: 13, lineHeight: 1.5 }}>{item.descricao}</div>
+                  </div>
+                  <button
+                    onClick={() => navigate(item.to)}
+                    className="inline-flex items-center gap-2"
+                    style={{ color: 'var(--accent)', fontWeight: 600, background: 'transparent', border: 'none', padding: 0, cursor: 'pointer' }}
+                  >
+                    {item.acao}
+                    <ArrowRight size={14} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
 
         {/* ===== DUAS COLUNAS ===== */}
         <div className="two-col-grid grid gap-5 lg-grid-cols-2">

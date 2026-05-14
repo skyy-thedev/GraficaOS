@@ -1,6 +1,7 @@
 // ===== Tipos compartilhados do GráficaOS =====
 
 export type Role = 'ADMIN' | 'EMPLOYEE';
+export type Loja = 'PAPER_OFFICE_I' | 'PAPER_OFFICE_II';
 export type ArteStatus = 'TODO' | 'DOING' | 'REVIEW' | 'DONE';
 export type Urgencia = 'LOW' | 'NORMAL' | 'HIGH';
 export type ProdutoTipo = 'AZULEJO' | 'BANNER' | 'ADESIVO' | 'PLACA' | 'FAIXA' | 'OUTRO';
@@ -11,6 +12,9 @@ export interface User {
   name: string;
   email: string;
   role: Role;
+  loja: Loja;
+  jornadaEntrada: string;
+  jornadaSaida: string;
   avatarColor: string;
   initials: string;
   active: boolean;
@@ -21,7 +25,7 @@ export interface User {
 export interface Ponto {
   id: string;
   userId: string;
-  user: Pick<User, 'id' | 'name' | 'initials' | 'avatarColor'>;
+  user: Pick<User, 'id' | 'name' | 'initials' | 'avatarColor' | 'loja'>;
   date: string;
   entrada: string | null;
   almoco: string | null;
@@ -34,10 +38,40 @@ export interface Ponto {
   updatedAt: string;
 }
 
+export interface ComprovanteTokenResponse {
+  token: string;
+  urlValidacao: string;
+}
+
+export interface ComprovanteValidacao {
+  pontoId: string;
+  urlValidacao: string;
+  verificadoEm: string;
+  funcionario: {
+    id: string;
+    nome: string;
+    loja: Loja;
+    role: Role;
+  };
+  expediente: {
+    data: string;
+    status: PontoStatus;
+    horasTrabalhadas: string | null;
+    encerramentoAutomatico: boolean;
+    emitidoEm: string;
+  };
+  registros: {
+    entrada: string | null;
+    almoco: string | null;
+    retorno: string | null;
+    saida: string | null;
+  };
+}
+
 export interface FolgaConfig {
   id: string;
   userId: string;
-  user: Pick<User, 'id' | 'name' | 'initials' | 'avatarColor'>;
+  user: Pick<User, 'id' | 'name' | 'initials' | 'avatarColor' | 'loja'>;
   diaSemana: number; // 0=DOM..6=SAB
   createdAt: string;
   updatedAt: string;
@@ -126,7 +160,7 @@ export interface Arte {
   larguraCm: number;
   alturaCm: number;
   responsavelId: string;
-  responsavel: Pick<User, 'id' | 'name' | 'initials' | 'avatarColor'>;
+  responsavel: Pick<User, 'id' | 'name' | 'initials' | 'avatarColor' | 'loja'>;
   status: ArteStatus;
   urgencia: Urgencia;
   prazo: string | null;
@@ -152,6 +186,9 @@ export interface CreateUserRequest {
   email: string;
   password: string;
   role?: Role;
+  loja?: Loja;
+  jornadaEntrada?: string;
+  jornadaSaida?: string;
   avatarColor?: string;
 }
 
@@ -160,6 +197,9 @@ export interface UpdateUserRequest {
   email?: string;
   password?: string;
   role?: Role;
+  loja?: Loja;
+  jornadaEntrada?: string;
+  jornadaSaida?: string;
   avatarColor?: string;
   active?: boolean;
 }

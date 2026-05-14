@@ -36,25 +36,27 @@ export function Sidebar() {
       ],
     },
     {
-      title: 'MÓDULOS',
+      title: isAdmin ? 'NAVBAR ADMIN' : 'MÓDULOS',
       items: [
         ...(!isAdmin ? [{ to: '/ponto', icon: Clock, label: 'Registro de Ponto', badge: 0, badgeType: 'normal' as const }] : []),
-        { to: '/checklist', icon: CheckSquare, label: 'Checklist Diário', badge: checklistPendentes, badgeType: (checklistAtrasados ? 'warning' : 'normal') as 'warning' | 'normal' },
         ...(isAdmin ? [
-          { to: '/gestao-pontos', icon: ClipboardList, label: 'Gestão de Pontos', badge: 0, badgeType: 'normal' as const },
-          { to: '/ponto/analytics', icon: BarChart3, label: 'Analytics de Ponto', badge: 0, badgeType: 'normal' as const },
-          { to: '/agenda-producao', icon: CalendarDays, label: 'Agenda de Produção', badge: 0, badgeType: 'normal' as const },
-          { to: '/gestao-operacional', icon: Factory, label: 'Gestão Operacional', badge: 0, badgeType: 'normal' as const },
-          { to: '/clientes-recorrentes', icon: Repeat2, label: 'Cliente Recorrente', badge: 0, badgeType: 'normal' as const },
+          { to: '/gestao-pontos', icon: ClipboardList, label: 'Gestão', badge: 0, badgeType: 'normal' as const },
+          { to: '/ponto/analytics', icon: BarChart3, label: 'Analytics', badge: 0, badgeType: 'normal' as const },
+          { to: '/agenda-producao', icon: CalendarDays, label: 'Agenda', badge: 0, badgeType: 'normal' as const },
         ] : []),
-        { to: '/artes', icon: Palette, label: 'Artes / Gráfica', badge: artesAtivasCount, badgeType: 'normal' as const },
+        ...(!isAdmin ? [{ to: '/checklist', icon: CheckSquare, label: 'Checklist Diário', badge: checklistPendentes, badgeType: (checklistAtrasados ? 'warning' : 'normal') as 'warning' | 'normal' }] : []),
+        ...(!isAdmin ? [{ to: '/artes', icon: Palette, label: 'Artes / Gráfica', badge: artesAtivasCount, badgeType: 'normal' as const }] : []),
       ],
     },
     ...(isAdmin
       ? [
           {
-            title: 'ADMINISTRAÇÃO',
+            title: 'COMPLEMENTOS',
             items: [
+              { to: '/artes', icon: Palette, label: 'Artes / Gráfica', badge: artesAtivasCount, badgeType: 'normal' as const },
+              { to: '/gestao-operacional', icon: Factory, label: 'Operação', badge: 0, badgeType: 'normal' as const },
+              { to: '/clientes-recorrentes', icon: Repeat2, label: 'Clientes', badge: 0, badgeType: 'normal' as const },
+              { to: '/checklist', icon: CheckSquare, label: 'Checklist Diário', badge: checklistPendentes, badgeType: (checklistAtrasados ? 'warning' : 'normal') as 'warning' | 'normal' },
               { to: '/funcionarios', icon: Users, label: 'Funcionários', badge: 0, badgeType: 'normal' as const },
             ],
           },

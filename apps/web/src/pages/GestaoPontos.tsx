@@ -18,6 +18,7 @@ import { useMemo, useState } from 'react';
 import { format } from 'date-fns';
 import type { FolgaConfig, Ponto, PontoStatus, User } from '@/types';
 import { formatarHora, formatarData } from '@/utils/timezone';
+import { LOJA_LABELS } from '@/utils/lojas';
 
 // ===== Helpers =====
 function calcularHoras(ponto: Ponto): string | null {
@@ -68,6 +69,7 @@ function criarLinhaFolga(user: User, dateKey: string): Ponto {
       name: user.name,
       initials: user.initials,
       avatarColor: user.avatarColor,
+      loja: user.loja,
     },
     date: isoDate,
     entrada: null,
@@ -80,6 +82,36 @@ function criarLinhaFolga(user: User, dateKey: string): Ponto {
     createdAt: isoDate,
     updatedAt: isoDate,
   };
+}
+
+function criarLinhaAusencia(user: User, dateKey: string): Ponto {
+  const isoDate = `${dateKey}T12:00:00.000Z`;
+
+  return {
+    id: `ausencia-${user.id}-${dateKey}`,
+    userId: user.id,
+    user: {
+      id: user.id,
+      name: user.name,
+      initials: user.initials,
+      avatarColor: user.avatarColor,
+      loja: user.loja,
+    },
+    date: isoDate,
+    entrada: null,
+    almoco: null,
+    retorno: null,
+    saida: null,
+    status: 'NORMAL',
+    encerramentoAutomatico: false,
+    horasTrabalhadas: null,
+    createdAt: isoDate,
+    updatedAt: isoDate,
+  };
+}
+
+function isRegistroSintetico(ponto: Ponto): boolean {
+  return ponto.id.startsWith('folga-') || ponto.id.startsWith('ausencia-');
 }
 
 function isFolgaConfiguradaNoDia(userId: string, dateKey: string, folgas: FolgaConfig[]): boolean {
@@ -238,39 +270,37 @@ export function GestaoPontosPage() {
     const pontosBase = relatorioPontos ?? [];
     const pontoPorUsuario = new Map(pontosBase.map((ponto) => [ponto.userId, ponto]));
     const folgas = folgasData ?? [];
-    const linhasFolga = usuariosEscopo
-      .filter((user) => !pontoPorUsuario.has(user.id) && isFolgaConfiguradaNoDia(user.id, filterDate, folgas))
-      .map((user) => criarLinhaFolga(user, filterDate));
-
-    return [...pontosBase, ...linhasFolga].sort((a, b) => a.user.name.localeCompare(b.user.name));
-  }, [relatorioPontos, folgasData, usuariosEscopo, filterDate]);
-
-  const ausentesCount = useMemo(() => {
-    const pontoPorUsuario = new Map(pontosExibidos.map((ponto) => [ponto.userId, ponto]));
     const diaSemana = getDiaSemanaDateKey(filterDate);
     const ehDiaUtil = diaSemana !== 0 && diaSemana !== 6;
 
-    if (!ehDiaUtil) {
-      return 0;
-    }
+    return usuariosEscopo
+      .map((user) => {
+        const pontoReal = pontoPorUsuario.get(user.id);
 
-    return usuariosEscopo.filter((user) => {
-      const ponto = pontoPorUsuario.get(user.id);
+        if (pontoReal) {
+          return pontoReal;
+        }
 
-      if (isFolgaConfiguradaNoDia(user.id, filterDate, folgasData ?? [])) {
-        return false;
-      }
+        if (isFolgaConfiguradaNoDia(user.id, filterDate, folgas)) {
+          return criarLinhaFolga(user, filterDate);
+        }
 
-      if (ponto?.status === 'FOLGA') {
-        return false;
-      }
+        if (!ehDiaUtil) {
+          return null;
+        }
 
-      return !ponto?.entrada;
-    }).length;
-  }, [pontosExibidos, usuariosEscopo, filterDate, folgasData]);
+        return criarLinhaAusencia(user, filterDate);
+      })
+      .filter((ponto): ponto is Ponto => Boolean(ponto))
+      .sort((a, b) => a.user.name.localeCompare(b.user.name));
+  }, [relatorioPontos, folgasData, usuariosEscopo, filterDate]);
+
+  const ausentesCount = useMemo(() => {
+    return pontosExibidos.filter((ponto) => !ponto.entrada && ponto.status !== 'FOLGA').length;
+  }, [pontosExibidos]);
 
   // Stats
-  const totalRegistros = pontosExibidos.length;
+  const totalRegistros = usuariosEscopo.length;
   const completosCount = pontosExibidos.filter((p) => !!p.saida).length;
   const trabalhandoCount = pontosExibidos.filter((p) => p.entrada && !p.saida).length;
 
@@ -354,7 +384,7 @@ export function GestaoPontosPage() {
                 style={{ width: 180 }}
               />
               <Select value={filterUserId} onValueChange={setFilterUserId}>
-                <SelectTrigger style={{ width: 220 }}>
+                <SelectTrigger className="mobile-select" style={{ width: '100%', maxWidth: 220 }}>
                   <SelectValue placeholder="Todos os funcionários" />
                 </SelectTrigger>
                 <SelectContent>
@@ -368,11 +398,11 @@ export function GestaoPontosPage() {
               </Select>
             </div>
 
-            {/* Tabela */}
+            {/* Cards por funcionário */}
             {isLoading ? (
               <div className="space-y-3">
                 {[1, 2, 3, 4].map((i) => (
-                  <div key={i} className="skeleton h-12 w-full" />
+                  <div key={i} className="skeleton h-32 w-full" />
                 ))}
               </div>
             ) : pontosExibidos.length === 0 ? (
@@ -381,87 +411,91 @@ export function GestaoPontosPage() {
                 <p className="text-sm">Nenhum registro encontrado para este filtro.</p>
               </div>
             ) : (
-              <div className="table-wrapper overflow-x-auto">
-                <table className="w-full text-left table-text">
-                  <thead>
-                    <tr className="table-header-row">
-                      {['FUNCIONÁRIO', 'DATA', 'ENTRADA', 'ALMOÇO', 'RETORNO', 'SAÍDA', 'HORAS', 'STATUS', ...(isAdmin ? ['AÇÕES'] : [])].map((h) => (
-                        <th
-                          key={h}
-                          className="th-cell"
-                        >
-                          {h}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {pontosExibidos.map((p) => {
-                      const horas = calcularHoras(p);
-                      const status = getStatusLabel(p);
+              <div className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))' }}>
+                {pontosExibidos.map((p) => {
+                  const horas = calcularHoras(p);
+                  const status = getStatusLabel(p);
+                  const registroSintetico = isRegistroSintetico(p);
 
-                      return (
-                        <tr key={p.id} className="table-body-row">
-                          <td className="py-3 px-4">
-                            <div className="flex items-center gap-3">
-                              <div
-                                className="bg-dynamic flex h-8 w-8 items-center justify-center rounded-full text-10 font-bold text-white shrink-0"
-                                data-color={p.user.avatarColor}
-                              >
-                                {p.user.initials}
-                              </div>
-                              <div>
-                                <span className="block text-21 font-medium dash-name">{p.user.name}</span>
-                              </div>
+                  return (
+                    <div
+                      key={p.id}
+                      style={{
+                        border: '1px solid var(--border2)',
+                        borderRadius: 20,
+                        background: 'linear-gradient(180deg, rgba(255,255,255,0.02), transparent)',
+                        padding: 18,
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: 16,
+                      }}
+                    >
+                      <div className="flex items-start justify-between gap-3 flex-wrap">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div
+                            className="bg-dynamic flex h-10 w-10 items-center justify-center rounded-full text-10 font-bold text-white shrink-0"
+                            data-color={p.user.avatarColor}
+                          >
+                            {p.user.initials}
+                          </div>
+                          <div className="min-w-0">
+                            <span className="block text-21 font-medium dash-name truncate">{p.user.name}</span>
+                            <div className="flex items-center gap-2 flex-wrap" style={{ marginTop: 4 }}>
+                              <span className="inline-flex items-center rounded-full px-2 py-1 text-18" style={{ background: 'var(--bg3)', color: 'var(--text2)' }}>
+                                {LOJA_LABELS[p.user.loja]}
+                              </span>
+                              <span className="text-18" style={{ color: 'var(--text3)' }}>{formatarData(p.date)}</span>
                             </div>
-                          </td>
-                          <td className="py-3 px-4 font-mono text-secondary text-20">
-                            {formatarData(p.date)}
-                          </td>
-                          <td className="py-3 px-4">
-                            <TimeTag value={p.entrada} color="var(--green)" dimColor="var(--green-dim)" />
-                          </td>
-                          <td className="py-3 px-4">
-                            <TimeTag value={p.almoco} color="var(--yellow)" dimColor="var(--yellow-dim)" />
-                          </td>
-                          <td className="py-3 px-4">
-                            <TimeTag value={p.retorno} color="var(--blue)" dimColor="var(--blue-dim)" />
-                          </td>
-                          <td className="py-3 px-4">
-                            <TimeTag value={p.saida} color="var(--red)" dimColor="var(--red-dim)" />
-                          </td>
-                          <td className="py-3 px-4 font-mono text-accent font-semibold text-20">
-                            {horas ?? '—'}
-                          </td>
-                          <td className="py-3 px-4">
-                            <span
-                              className="inline-block px-2-5 py-1 rounded-full text-18 font-semibold font-mono tracking-wide"
-                              style={{
-                                background: status.dimColor,
-                                color: status.color,
-                                border: `1px solid ${status.color}`,
-                              }}
-                            >
-                              {status.label}
-                            </span>
-                          </td>
-                          {isAdmin && (
-                            <td className="py-3 px-4">
-                              <button
-                                className="inline-flex items-center gap-1 px-2 py-1 rounded text-18 font-medium transition-colors"
-                                style={{ background: 'var(--bg3)', color: 'var(--accent)', border: '1px solid var(--border2)' }}
-                                onClick={() => openEditModal(p)}
-                                title="Editar horários"
-                              >
-                                <Pencil size={12} /> Editar
-                              </button>
-                            </td>
-                          )}
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
+                          </div>
+                        </div>
+                        <span
+                          className="inline-block px-2-5 py-1 rounded-full text-18 font-semibold font-mono tracking-wide"
+                          style={{
+                            background: status.dimColor,
+                            color: status.color,
+                            border: `1px solid ${status.color}`,
+                          }}
+                        >
+                          {status.label}
+                        </span>
+                      </div>
+
+                      <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))' }}>
+                        <MetricTime label="Entrada" value={p.entrada} color="var(--green)" dimColor="var(--green-dim)" />
+                        <MetricTime label="Almoço" value={p.almoco} color="var(--yellow)" dimColor="var(--yellow-dim)" />
+                        <MetricTime label="Retorno" value={p.retorno} color="var(--blue)" dimColor="var(--blue-dim)" />
+                        <MetricTime label="Saída" value={p.saida} color="var(--red)" dimColor="var(--red-dim)" />
+                      </div>
+
+                      <div className="flex items-center justify-between gap-3 flex-wrap">
+                        <div>
+                          <div style={{ color: 'var(--text3)', fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Horas do dia</div>
+                          <div className="font-mono" style={{ fontSize: 20, fontWeight: 700, color: 'var(--accent)' }}>{horas ?? '—'}</div>
+                        </div>
+                        {p.encerramentoAutomatico && (
+                          <span className="inline-flex items-center rounded-full px-2 py-1 text-18" style={{ background: 'var(--yellow-dim)', color: 'var(--yellow)' }}>
+                            Encerrado automaticamente
+                          </span>
+                        )}
+                        {isAdmin && !registroSintetico && (
+                          <button
+                            className="inline-flex items-center gap-1 px-3 py-2 rounded text-18 font-medium transition-colors"
+                            style={{ background: 'var(--bg3)', color: 'var(--accent)', border: '1px solid var(--border2)' }}
+                            onClick={() => openEditModal(p)}
+                            title="Editar horários"
+                          >
+                            <Pencil size={13} /> Editar
+                          </button>
+                        )}
+                        {isAdmin && registroSintetico && (
+                          <span className="text-18" style={{ color: 'var(--text3)' }}>
+                            Ajuste via ponto manual
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             )}
           </CardContent>
@@ -484,7 +518,7 @@ export function GestaoPontosPage() {
                     <strong>{editPonto.user.name}</strong>
                   </p>
                 )}
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <div className="mobile-form-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                   <div>
                     <label className="form-label">Data</label>
                     <Input type="date" value={editDate} onChange={(e) => setEditDate(e.target.value)} />
@@ -502,7 +536,7 @@ export function GestaoPontosPage() {
                   </div>
                 </div>
                 {editStatus === 'NORMAL' && (
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                  <div className="mobile-form-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                     <div>
                       <label className="form-label">Entrada</label>
                       <Input type="time" value={editEntrada} onChange={(e) => setEditEntrada(e.target.value)} />
@@ -549,7 +583,7 @@ export function GestaoPontosPage() {
                 <Dialog.Close className="dialog-close"><X size={18} /></Dialog.Close>
               </div>
               <div className="dialog-body" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <div className="mobile-form-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                   <div style={{ gridColumn: '1 / -1' }}>
                     <label className="form-label">Funcionário</label>
                     <Select value={manualUserId} onValueChange={setManualUserId}>
@@ -578,7 +612,7 @@ export function GestaoPontosPage() {
                   </div>
                 </div>
                 {manualStatus === 'NORMAL' && (
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                  <div className="mobile-form-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                     <div>
                       <label className="form-label">Entrada</label>
                       <Input type="time" value={manualEntrada} onChange={(e) => setManualEntrada(e.target.value)} />
@@ -692,5 +726,24 @@ function TimeTag({ value, color, dimColor }: { value: string | null; color: stri
     >
       {formatarHora(value)}
     </span>
+  );
+}
+
+function MetricTime({
+  label,
+  value,
+  color,
+  dimColor,
+}: {
+  label: string;
+  value: string | null;
+  color: string;
+  dimColor: string;
+}) {
+  return (
+    <div style={{ border: '1px solid var(--border2)', borderRadius: 14, padding: 12, background: 'var(--bg2)' }}>
+      <div style={{ color: 'var(--text3)', fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>{label}</div>
+      <TimeTag value={value} color={color} dimColor={dimColor} />
+    </div>
   );
 }

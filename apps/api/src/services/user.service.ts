@@ -6,6 +6,9 @@ interface CreateUserInput {
   email: string;
   password: string;
   role?: 'ADMIN' | 'EMPLOYEE';
+  loja?: 'PAPER_OFFICE_I' | 'PAPER_OFFICE_II';
+  jornadaEntrada?: string;
+  jornadaSaida?: string;
   avatarColor?: string;
 }
 
@@ -14,6 +17,9 @@ interface UpdateUserInput {
   email?: string;
   password?: string;
   role?: 'ADMIN' | 'EMPLOYEE';
+  loja?: 'PAPER_OFFICE_I' | 'PAPER_OFFICE_II';
+  jornadaEntrada?: string;
+  jornadaSaida?: string;
   avatarColor?: string;
   active?: boolean;
 }
@@ -35,6 +41,9 @@ export async function listUsers() {
       name: true,
       email: true,
       role: true,
+      loja: true,
+      jornadaEntrada: true,
+      jornadaSaida: true,
       avatarColor: true,
       initials: true,
       active: true,
@@ -56,6 +65,9 @@ export async function createUser(data: CreateUserInput) {
       email: data.email,
       password: hashedPassword,
       role: data.role ?? 'EMPLOYEE',
+      loja: data.loja ?? 'PAPER_OFFICE_I',
+      jornadaEntrada: data.jornadaEntrada ?? '10:00',
+      jornadaSaida: data.jornadaSaida ?? '18:30',
       avatarColor: data.avatarColor ?? '#6c63ff',
       initials,
     },
@@ -64,6 +76,9 @@ export async function createUser(data: CreateUserInput) {
       name: true,
       email: true,
       role: true,
+      loja: true,
+      jornadaEntrada: true,
+      jornadaSaida: true,
       avatarColor: true,
       initials: true,
       active: true,
@@ -82,6 +97,9 @@ export async function updateUser(id: string, data: UpdateUserInput) {
   }
   if (data.email) updateData.email = data.email;
   if (data.role) updateData.role = data.role;
+  if (data.loja) updateData.loja = data.loja;
+  if (data.jornadaEntrada) updateData.jornadaEntrada = data.jornadaEntrada;
+  if (data.jornadaSaida) updateData.jornadaSaida = data.jornadaSaida;
   if (data.avatarColor) updateData.avatarColor = data.avatarColor;
   if (data.active !== undefined) updateData.active = data.active;
 
@@ -97,6 +115,9 @@ export async function updateUser(id: string, data: UpdateUserInput) {
       name: true,
       email: true,
       role: true,
+      loja: true,
+      jornadaEntrada: true,
+      jornadaSaida: true,
       avatarColor: true,
       initials: true,
       active: true,

@@ -10,6 +10,7 @@ const envSchema = z.object({
   MAX_FILE_SIZE_MB: z.coerce.number().default(25),
   PORT: z.coerce.number().default(3333),
   FRONTEND_URL: z.string().default('http://localhost:5173'),
+  FRONTEND_URLS: z.string().default(''),
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
 
   // Email (para exportação de relatórios)

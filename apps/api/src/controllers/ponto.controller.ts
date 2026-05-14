@@ -4,12 +4,14 @@ import * as pontoService from '../services/ponto.service';
 
 const relatorioSchema = z.object({
   userId: z.string().optional(),
+  loja: z.enum(['PAPER_OFFICE_I', 'PAPER_OFFICE_II']).optional(),
   startDate: z.string().min(1, 'Data inicial é obrigatória'),
   endDate: z.string().min(1, 'Data final é obrigatória'),
 });
 
 const emailSchema = z.object({
   userId: z.string().optional(),
+  loja: z.enum(['PAPER_OFFICE_I', 'PAPER_OFFICE_II']).optional(),
   startDate: z.string().min(1),
   endDate: z.string().min(1),
   destinatario: z.string().email('Email inválido'),
@@ -37,6 +39,14 @@ const pontoManualSchema = z.object({
 const configurarFolgasSchema = z.object({
   userId: z.string().min(1),
   diasSemana: z.array(z.number().min(0).max(6)),
+});
+
+const comprovanteTokenParamsSchema = z.object({
+  id: z.string().min(1, 'Ponto é obrigatório'),
+});
+
+const comprovanteValidacaoParamsSchema = z.object({
+  token: z.string().min(1, 'Token é obrigatório'),
 });
 
 export async function list(req: Request, res: Response, next: NextFunction): Promise<void> {
@@ -71,6 +81,7 @@ export async function relatorio(req: Request, res: Response, next: NextFunction)
     const query = relatorioSchema.parse(req.query);
     const pontos = await pontoService.getRelatorio({
       userId: query.userId,
+      loja: query.loja,
       startDate: query.startDate,
       endDate: query.endDate,
       requestUserId: req.userId!,
@@ -87,6 +98,7 @@ export async function metricas(req: Request, res: Response, next: NextFunction):
     const query = relatorioSchema.parse(req.query);
     const result = await pontoService.getMetricas({
       userId: query.userId,
+      loja: query.loja,
       startDate: query.startDate,
       endDate: query.endDate,
       requestUserId: req.userId!,
@@ -103,6 +115,7 @@ export async function exportCSV(req: Request, res: Response, next: NextFunction)
     const query = relatorioSchema.parse(req.query);
     const csv = await pontoService.exportCSV({
       userId: query.userId,
+      loja: query.loja,
       startDate: query.startDate,
       endDate: query.endDate,
     });
@@ -119,6 +132,7 @@ export async function exportXLSX(req: Request, res: Response, next: NextFunction
     const query = relatorioSchema.parse(req.query);
     const buffer = await pontoService.exportXLSX({
       userId: query.userId,
+      loja: query.loja,
       startDate: query.startDate,
       endDate: query.endDate,
     });
@@ -135,6 +149,7 @@ export async function exportPDF(req: Request, res: Response, next: NextFunction)
     const query = relatorioSchema.parse(req.query);
     const buffer = await pontoService.exportPDF({
       userId: query.userId,
+      loja: query.loja,
       startDate: query.startDate,
       endDate: query.endDate,
     });
@@ -161,6 +176,7 @@ export async function anomalias(req: Request, res: Response, next: NextFunction)
     const query = relatorioSchema.parse(req.query);
     const result = await pontoService.getAnomalias({
       userId: query.userId,
+      loja: query.loja,
       startDate: query.startDate,
       endDate: query.endDate,
     });
@@ -174,9 +190,34 @@ export async function insights(req: Request, res: Response, next: NextFunction):
   try {
     const query = relatorioSchema.parse(req.query);
     const result = await pontoService.getInsights({
+      loja: query.loja,
       startDate: query.startDate,
       endDate: query.endDate,
     });
+    res.json(result);
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function gerarTokenComprovante(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const params = comprovanteTokenParamsSchema.parse(req.params);
+    const result = await pontoService.gerarTokenComprovante({
+      pontoId: params.id,
+      requestUserId: req.userId!,
+      requestUserRole: req.userRole!,
+    });
+    res.json(result);
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function validarComprovantePublico(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const params = comprovanteValidacaoParamsSchema.parse(req.params);
+    const result = await pontoService.validarComprovanteToken(params.token);
     res.json(result);
   } catch (error) {
     next(error);

@@ -4,6 +4,7 @@ import type {
   LoginRequest,
   User,
   Ponto,
+  ComprovanteTokenResponse,
   Arte,
   CreateUserRequest,
   UpdateUserRequest,
@@ -64,28 +65,31 @@ export const pontosApi = {
   bater: () =>
     api.post<Ponto>('/pontos/bater').then((r) => r.data),
 
-  relatorio: (params: { userId?: string; startDate: string; endDate: string }) =>
+  relatorio: (params: { userId?: string; loja?: import('@/types').Loja; startDate: string; endDate: string }) =>
     api.get<Ponto[]>('/pontos/relatorio', { params }).then((r) => r.data),
 
-  metricas: (params: { userId?: string; startDate: string; endDate: string }) =>
+  metricas: (params: { userId?: string; loja?: import('@/types').Loja; startDate: string; endDate: string }) =>
     api.get<MetricasPonto>('/pontos/metricas', { params }).then((r) => r.data),
 
-  anomalias: (params: { userId?: string; startDate: string; endDate: string }) =>
+  anomalias: (params: { userId?: string; loja?: import('@/types').Loja; startDate: string; endDate: string }) =>
     api.get<Anomalia[]>('/pontos/anomalias', { params }).then((r) => r.data),
 
-  insights: (params: { startDate: string; endDate: string }) =>
+  insights: (params: { startDate: string; endDate: string; loja?: import('@/types').Loja }) =>
     api.get<InsightsPeriodo>('/pontos/insights', { params }).then((r) => r.data),
 
-  exportCSV: (params: { userId?: string; startDate: string; endDate: string }) =>
+  gerarTokenComprovante: (id: string) =>
+    api.get<ComprovanteTokenResponse>(`/pontos/${id}/comprovante-token`).then((r) => r.data),
+
+  exportCSV: (params: { userId?: string; loja?: import('@/types').Loja; startDate: string; endDate: string }) =>
     api.get('/pontos/export/csv', { params, responseType: 'blob' }).then((r) => r.data as Blob),
 
-  exportXLSX: (params: { userId?: string; startDate: string; endDate: string }) =>
+  exportXLSX: (params: { userId?: string; loja?: import('@/types').Loja; startDate: string; endDate: string }) =>
     api.get('/pontos/export/xlsx', { params, responseType: 'blob' }).then((r) => r.data as Blob),
 
-  exportPDF: (params: { userId?: string; startDate: string; endDate: string }) =>
+  exportPDF: (params: { userId?: string; loja?: import('@/types').Loja; startDate: string; endDate: string }) =>
     api.get('/pontos/export/pdf', { params, responseType: 'blob' }).then((r) => r.data as Blob),
 
-  enviarEmail: (params: { userId?: string; startDate: string; endDate: string; destinatario: string }) =>
+  enviarEmail: (params: { userId?: string; loja?: import('@/types').Loja; startDate: string; endDate: string; destinatario: string }) =>
     api.post<{ sent: boolean; message: string }>('/pontos/export/email', params).then((r) => r.data),
 
   editar: (id: string, data: { entrada?: string | null; almoco?: string | null; retorno?: string | null; saida?: string | null; status?: string; date?: string }) =>

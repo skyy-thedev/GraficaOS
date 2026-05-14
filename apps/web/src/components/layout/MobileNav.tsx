@@ -23,19 +23,24 @@ export function MobileNav() {
   // Itens principais (sempre visíveis)
   const mainItems = [
     { to: '/', icon: LayoutDashboard, label: 'Início' },
-    ...(!isAdmin ? [{ to: '/ponto', icon: Clock, label: 'Ponto' }] : []),
-    { to: '/checklist', icon: CheckSquare, label: 'Checklist' },
-    { to: '/artes', icon: Palette, label: 'Artes' },
+    ...(isAdmin
+      ? [
+          { to: '/gestao-pontos', icon: ClipboardList, label: 'Gestão' },
+          { to: '/ponto/analytics', icon: BarChart3, label: 'Analytics' },
+          { to: '/agenda-producao', icon: CalendarDays, label: 'Agenda' },
+        ]
+      : [{ to: '/ponto', icon: Clock, label: 'Ponto' }]),
+    ...(!isAdmin ? [{ to: '/checklist', icon: CheckSquare, label: 'Checklist' }] : []),
+    ...(!isAdmin ? [{ to: '/artes', icon: Palette, label: 'Artes' }] : []),
   ];
 
   // Itens extras (admin)
   const extraItems = [
-    ...(isAdmin ? [{ to: '/gestao-pontos', icon: ClipboardList, label: 'Gestão' }] : []),
-    ...(isAdmin ? [{ to: '/ponto/analytics', icon: BarChart3, label: 'Analytics' }] : []),
-    ...(isAdmin ? [{ to: '/agenda-producao', icon: CalendarDays, label: 'Agenda' }] : []),
     ...(isAdmin ? [{ to: '/gestao-operacional', icon: Factory, label: 'Operação' }] : []),
     ...(isAdmin ? [{ to: '/clientes-recorrentes', icon: Repeat2, label: 'Clientes' }] : []),
     ...(isAdmin ? [{ to: '/funcionarios', icon: Users, label: 'Equipe' }] : []),
+    ...(isAdmin ? [{ to: '/artes', icon: Palette, label: 'Artes' }] : []),
+    ...(isAdmin ? [{ to: '/checklist', icon: CheckSquare, label: 'Checklist' }] : []),
   ];
 
   const allItems = [...mainItems, ...extraItems];

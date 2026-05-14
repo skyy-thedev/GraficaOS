@@ -1,5 +1,6 @@
 import { prisma } from '../prisma/client';
 import { env } from '../config/env';
+import jwt from 'jsonwebtoken';
 import ExcelJS from 'exceljs';
 import PDFDocument from 'pdfkit';
 import nodemailer from 'nodemailer';
@@ -32,7 +33,7 @@ export async function listPontos(userId: string, role: string) {
     where,
     include: {
       user: {
-        select: { id: true, name: true, initials: true, avatarColor: true },
+        select: { id: true, name: true, initials: true, avatarColor: true, loja: true },
       },
     },
     orderBy: { date: 'desc' },
@@ -49,7 +50,7 @@ export async function getPontoHoje(userId: string) {
     },
     include: {
       user: {
-        select: { id: true, name: true, initials: true, avatarColor: true },
+        select: { id: true, name: true, initials: true, avatarColor: true, loja: true },
       },
     },
   });
@@ -125,10 +126,129 @@ async function getPontoComUser(pontoId: string) {
     where: { id: pontoId },
     include: {
       user: {
-        select: { id: true, name: true, initials: true, avatarColor: true },
+        select: { id: true, name: true, initials: true, avatarColor: true, loja: true },
       },
     },
   });
+}
+
+type ComprovanteTokenPayload = {
+  type: 'PONTO_COMPROVANTE';
+  pontoId: string;
+  userId: string;
+};
+
+function getStatusComprovante(ponto: {
+  entrada: Date | null;
+  saida: Date | null;
+  status: 'NORMAL' | 'FOLGA' | 'FALTA';
+}) {
+  if (ponto.status) {
+    return ponto.status;
+  }
+
+  if (ponto.entrada || ponto.saida) {
+    return 'NORMAL' as const;
+  }
+
+  return 'FALTA' as const;
+}
+
+async function getPontoComprovanteById(pontoId: string) {
+  return prisma.ponto.findUnique({
+    where: { id: pontoId },
+    include: {
+      user: {
+        select: {
+          id: true,
+          name: true,
+          loja: true,
+          role: true,
+        },
+      },
+    },
+  });
+}
+
+export async function gerarTokenComprovante(params: {
+  pontoId: string;
+  requestUserId: string;
+  requestUserRole: 'ADMIN' | 'EMPLOYEE';
+}) {
+  const { pontoId, requestUserId, requestUserRole } = params;
+
+  const ponto = await prisma.ponto.findUnique({
+    where: { id: pontoId },
+    select: { id: true, userId: true },
+  });
+
+  if (!ponto) {
+    throw Object.assign(new Error('Ponto não encontrado'), { statusCode: 404 });
+  }
+
+  if (requestUserRole !== 'ADMIN' && ponto.userId !== requestUserId) {
+    throw Object.assign(new Error('Você não tem acesso a este comprovante'), { statusCode: 403 });
+  }
+
+  const token = jwt.sign(
+    {
+      type: 'PONTO_COMPROVANTE',
+      pontoId: ponto.id,
+      userId: ponto.userId,
+    } satisfies ComprovanteTokenPayload,
+    env.JWT_SECRET,
+    { expiresIn: '365d' }
+  );
+
+  return {
+    token,
+    urlValidacao: `${env.FRONTEND_URL.replace(/\/$/, '')}/validar-comprovante/${token}`,
+  };
+}
+
+export async function validarComprovanteToken(token: string) {
+  let payload: ComprovanteTokenPayload;
+
+  try {
+    payload = jwt.verify(token, env.JWT_SECRET) as ComprovanteTokenPayload;
+  } catch {
+    throw Object.assign(new Error('Token do comprovante inválido ou expirado'), { statusCode: 400 });
+  }
+
+  if (payload.type !== 'PONTO_COMPROVANTE' || !payload.pontoId || !payload.userId) {
+    throw Object.assign(new Error('Token do comprovante inválido'), { statusCode: 400 });
+  }
+
+  const ponto = await getPontoComprovanteById(payload.pontoId);
+
+  if (!ponto || ponto.userId !== payload.userId) {
+    throw Object.assign(new Error('Comprovante não encontrado'), { statusCode: 404 });
+  }
+
+  return {
+    pontoId: ponto.id,
+    urlValidacao: `${env.FRONTEND_URL.replace(/\/$/, '')}/validar-comprovante/${token}`,
+    verificadoEm: new Date().toISOString(),
+    funcionario: {
+      id: ponto.user.id,
+      nome: ponto.user.name,
+      loja: ponto.user.loja,
+      role: ponto.user.role,
+    },
+    expediente: {
+      data: ponto.date.toISOString(),
+      status: getStatusComprovante(ponto),
+      horasTrabalhadas: calcularHoras(ponto),
+      encerramentoAutomatico: ponto.encerramentoAutomatico,
+      emitidoEm: ponto.updatedAt.toISOString(),
+    },
+    registros: {
+      entrada: ponto.entrada?.toISOString() ?? null,
+      almoco: ponto.almoco?.toISOString() ?? null,
+      retorno: ponto.retorno?.toISOString() ?? null,
+      saida: ponto.saida?.toISOString() ?? null,
+    },
+  };
 }
 
 /**
@@ -162,21 +282,25 @@ export function calcularHoras(ponto: {
 /** Relatório de pontos com filtro por período e usuário */
 export async function getRelatorio(params: {
   userId?: string;
+  loja?: 'PAPER_OFFICE_I' | 'PAPER_OFFICE_II';
   startDate: string;
   endDate: string;
   requestUserId: string;
   requestUserRole: string;
 }) {
-  const { userId, startDate, endDate, requestUserId, requestUserRole } = params;
+  const { userId, loja, startDate, endDate, requestUserId, requestUserRole } = params;
 
   // EMPLOYEE só pode ver seus próprios dados
   const filterUserId = requestUserRole === 'ADMIN'
     ? (userId ?? undefined)
     : requestUserId;
 
+  const usuariosEscopo = await carregarUsuariosEscopo(filterUserId, requestUserRole === 'ADMIN' ? loja : undefined);
+  const userIds = usuariosEscopo.map((user) => user.id);
+
   const pontos = await prisma.ponto.findMany({
     where: {
-      userId: filterUserId,
+      ...(userIds.length > 0 ? { userId: { in: userIds } } : { userId: '__no-user__' }),
       date: {
         gte: new Date(startDate),
         lte: new Date(endDate),
@@ -184,7 +308,7 @@ export async function getRelatorio(params: {
     },
     include: {
       user: {
-        select: { id: true, name: true, initials: true, avatarColor: true },
+        select: { id: true, name: true, initials: true, avatarColor: true, loja: true },
       },
     },
     orderBy: { date: 'asc' },
@@ -219,6 +343,8 @@ interface MetricasPonto {
 type UsuarioEscopo = {
   id: string;
   name: string;
+  jornadaEntrada: string;
+  role?: 'ADMIN' | 'EMPLOYEE';
 };
 
 type PontoCalendario = {
@@ -263,31 +389,110 @@ function getDiaSemanaDateKey(dateKey: string): number {
 }
 
 function isDiaUtilDateKey(dateKey: string): boolean {
-  const diaSemana = getDiaSemanaDateKey(dateKey);
-  return diaSemana !== 0 && diaSemana !== 6;
+  return true;
 }
 
 function getWeekLabelFromDateKey(dateKey: string): string {
   return DateTime.fromISO(dateKey, { zone: 'utc' }).startOf('week').toFormat('dd/MM');
 }
 
+function getEasterDateKey(year: number): string {
+  const a = year % 19;
+  const b = Math.floor(year / 100);
+  const c = year % 100;
+  const d = Math.floor(b / 4);
+  const e = b % 4;
+  const f = Math.floor((b + 8) / 25);
+  const g = Math.floor((b - f + 1) / 3);
+  const h = (19 * a + b - d - g + 15) % 30;
+  const i = Math.floor(c / 4);
+  const k = c % 4;
+  const l = (32 + 2 * e + 2 * i - h - k) % 7;
+  const m = Math.floor((a + 11 * h + 22 * l) / 451);
+  const month = Math.floor((h + l - 7 * m + 114) / 31);
+  const day = ((h + l - 7 * m + 114) % 31) + 1;
+
+  return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+}
+
+function shiftDateKey(dateKey: string, days: number): string {
+  return DateTime.fromISO(dateKey, { zone: 'utc' }).plus({ days }).toISODate()!;
+}
+
+function isFeriadoDateKey(dateKey: string): boolean {
+  const fixedHolidays = new Set([
+    '01-01',
+    '04-21',
+    '05-01',
+    '09-07',
+    '10-12',
+    '11-02',
+    '11-15',
+    '11-20',
+    '12-25',
+  ]);
+
+  const [, month, day] = dateKey.split('-');
+  if (fixedHolidays.has(`${month}-${day}`)) {
+    return true;
+  }
+
+  const year = Number(dateKey.slice(0, 4));
+  const pascoa = getEasterDateKey(year);
+  const moveableHolidays = new Set([
+    shiftDateKey(pascoa, -48),
+    shiftDateKey(pascoa, -47),
+    shiftDateKey(pascoa, -2),
+    pascoa,
+    shiftDateKey(pascoa, 60),
+  ]);
+
+  return moveableHolidays.has(dateKey);
+}
+
 function buildPontoMap<T extends { userId: string; date: Date }>(pontos: T[]): Map<string, T> {
   return new Map(pontos.map((ponto) => [`${ponto.userId}:${getDateOnlyKey(new Date(ponto.date))}`, ponto]));
 }
 
-async function carregarUsuariosEscopo(filterUserId?: string): Promise<UsuarioEscopo[]> {
+function isEntradaPontualPorJornada(params: {
+  entrada: Date;
+  jornadaEntrada: string;
+  dateKey: string;
+  toleranciaMinutos?: number;
+}): boolean {
+  const { entrada, jornadaEntrada, dateKey, toleranciaMinutos = 15 } = params;
+  const { hora, minuto } = getHoraMinutoSP(entrada);
+  const entradaMinutos = hora * 60 + minuto;
+  const [jornadaHora, jornadaMinuto] = jornadaEntrada.split(':').map(Number);
+  const jornadaMinutos = (jornadaHora ?? 0) * 60 + (jornadaMinuto ?? 0);
+  const diaSemana = getDiaSemanaDateKey(dateKey);
+  const feriado = isFeriadoDateKey(dateKey);
+
+  if (diaSemana === 0 || feriado) {
+    const jornadaDomingoMinutos = 12 * 60;
+    if (entradaMinutos <= jornadaDomingoMinutos + toleranciaMinutos) {
+      return true;
+    }
+  }
+
+  return entradaMinutos <= jornadaMinutos + toleranciaMinutos;
+}
+
+async function carregarUsuariosEscopo(filterUserId?: string, loja?: 'PAPER_OFFICE_I' | 'PAPER_OFFICE_II'): Promise<UsuarioEscopo[]> {
   if (filterUserId) {
     const user = await prisma.user.findUnique({
       where: { id: filterUserId },
-      select: { id: true, name: true },
+      select: { id: true, name: true, jornadaEntrada: true, role: true, loja: true, active: true },
     });
 
-    return user ? [user] : [];
+    return user && user.active && user.role === 'EMPLOYEE' && (!loja || user.loja === loja)
+      ? [{ id: user.id, name: user.name, jornadaEntrada: user.jornadaEntrada, role: user.role }]
+      : [];
   }
 
   return prisma.user.findMany({
-    where: { active: true },
-    select: { id: true, name: true },
+    where: { active: true, role: 'EMPLOYEE', ...(loja ? { loja } : {}) },
+    select: { id: true, name: true, jornadaEntrada: true, role: true },
     orderBy: { name: 'asc' },
   });
 }
@@ -377,20 +582,22 @@ function calcularStreaksEsperados(params: {
 /** Calcula métricas agregadas para o período */
 export async function getMetricas(params: {
   userId?: string;
+  loja?: 'PAPER_OFFICE_I' | 'PAPER_OFFICE_II';
   startDate: string;
   endDate: string;
   requestUserId: string;
   requestUserRole: string;
 }): Promise<MetricasPonto> {
-  const { userId, startDate, endDate, requestUserId, requestUserRole } = params;
+  const { userId, loja, startDate, endDate, requestUserId, requestUserRole } = params;
   const endDateLimitado = limitarDataFinalAoHoje(endDate);
 
   const filterUserId = requestUserRole === 'ADMIN'
     ? (userId ?? undefined)
     : requestUserId;
 
-  const usuariosEscopo = await carregarUsuariosEscopo(filterUserId);
+  const usuariosEscopo = await carregarUsuariosEscopo(filterUserId, requestUserRole === 'ADMIN' ? loja : undefined);
   const userIds = usuariosEscopo.map((user) => user.id);
+  const jornadaMap = new Map(usuariosEscopo.map((user) => [user.id, user.jornadaEntrada]));
   const folgaMap = await carregarFolgasPorUsuario(userIds);
   const datasPeriodo = startDate <= endDateLimitado ? listarDatasPeriodo(startDate, endDateLimitado) : [];
 
@@ -448,8 +655,6 @@ export async function getMetricas(params: {
   let diasPontuais = 0;
   let encerramentosAutomaticos = 0;
 
-  const [pontualH, pontualM] = env.HORARIO_ENTRADA_PONTUAL.split(':').map(Number) as [number, number];
-
   for (const ponto of pontos) {
     const mins = calcularMinutos(ponto);
     totalMinutos += mins;
@@ -458,8 +663,8 @@ export async function getMetricas(params: {
     horasPorDiaMap.set(dateKey, (horasPorDiaMap.get(dateKey) ?? 0) + mins);
 
     if (ponto.entrada) {
-      const { hora: entradaH, minuto: entradaM } = getHoraMinutoSP(new Date(ponto.entrada));
-      if (entradaH < pontualH || (entradaH === pontualH && entradaM <= pontualM)) {
+      const jornadaEntrada = jornadaMap.get(ponto.userId) ?? env.HORARIO_ENTRADA_PONTUAL;
+      if (isEntradaPontualPorJornada({ entrada: new Date(ponto.entrada), jornadaEntrada, dateKey, toleranciaMinutos: 15 })) {
         diasPontuais++;
       }
     }
@@ -574,12 +779,16 @@ function pontosToRows(pontos: Array<{
 
 async function fetchExportPontos(params: {
   userId?: string;
+  loja?: 'PAPER_OFFICE_I' | 'PAPER_OFFICE_II';
   startDate: string;
   endDate: string;
 }) {
+  const usuariosEscopo = await carregarUsuariosEscopo(params.userId, params.loja);
+  const userIds = usuariosEscopo.map((user) => user.id);
+
   return prisma.ponto.findMany({
     where: {
-      ...(params.userId ? { userId: params.userId } : {}),
+      ...(userIds.length > 0 ? { userId: { in: userIds } } : { userId: '__no-user__' }),
       date: { gte: new Date(params.startDate), lte: new Date(params.endDate) },
     },
     include: { user: { select: { id: true, name: true, initials: true, avatarColor: true } } },
@@ -588,7 +797,7 @@ async function fetchExportPontos(params: {
 }
 
 /** Exporta relatório em CSV */
-export async function exportCSV(params: { userId?: string; startDate: string; endDate: string }): Promise<string> {
+export async function exportCSV(params: { userId?: string; loja?: 'PAPER_OFFICE_I' | 'PAPER_OFFICE_II'; startDate: string; endDate: string }): Promise<string> {
   const pontos = await fetchExportPontos(params);
   const rows = pontosToRows(pontos);
 
@@ -601,7 +810,7 @@ export async function exportCSV(params: { userId?: string; startDate: string; en
 }
 
 /** Exporta relatório em Excel (.xlsx) */
-export async function exportXLSX(params: { userId?: string; startDate: string; endDate: string }): Promise<Buffer> {
+export async function exportXLSX(params: { userId?: string; loja?: 'PAPER_OFFICE_I' | 'PAPER_OFFICE_II'; startDate: string; endDate: string }): Promise<Buffer> {
   const pontos = await fetchExportPontos(params);
   const rows = pontosToRows(pontos);
 
@@ -705,7 +914,7 @@ export async function exportXLSX(params: { userId?: string; startDate: string; e
 }
 
 /** Gera PDF do relatório */
-export async function exportPDF(params: { userId?: string; startDate: string; endDate: string }): Promise<Buffer> {
+export async function exportPDF(params: { userId?: string; loja?: 'PAPER_OFFICE_I' | 'PAPER_OFFICE_II'; startDate: string; endDate: string }): Promise<Buffer> {
   const pontos = await fetchExportPontos(params);
   const rows = pontosToRows(pontos);
 
@@ -881,6 +1090,7 @@ export async function exportPDF(params: { userId?: string; startDate: string; en
 /** Envia relatório PDF por email */
 export async function enviarRelatorioPorEmail(params: {
   userId?: string;
+  loja?: 'PAPER_OFFICE_I' | 'PAPER_OFFICE_II';
   startDate: string;
   endDate: string;
   destinatario: string;
@@ -990,12 +1200,16 @@ export interface Anomalia {
 /** Detecta anomalias nos pontos do período */
 export async function getAnomalias(params: {
   userId?: string;
+  loja?: 'PAPER_OFFICE_I' | 'PAPER_OFFICE_II';
   startDate: string;
   endDate: string;
 }): Promise<Anomalia[]> {
+  const usuariosEscopo = await carregarUsuariosEscopo(params.userId, params.loja);
+  const userIds = usuariosEscopo.map((user) => user.id);
+
   const pontos = await prisma.ponto.findMany({
     where: {
-      ...(params.userId ? { userId: params.userId } : {}),
+      ...(userIds.length > 0 ? { userId: { in: userIds } } : { userId: '__no-user__' }),
       date: { gte: new Date(params.startDate), lte: new Date(params.endDate) },
     },
     include: { user: { select: { id: true, name: true } } },
@@ -1112,13 +1326,14 @@ export interface InsightsPeriodo {
 
 /** Gera insights automáticos para o período */
 export async function getInsights(params: {
+  loja?: 'PAPER_OFFICE_I' | 'PAPER_OFFICE_II';
   startDate: string;
   endDate: string;
 }): Promise<InsightsPeriodo> {
-  const { startDate, endDate } = params;
+  const { startDate, endDate, loja } = params;
   const endDateLimitado = limitarDataFinalAoHoje(endDate);
 
-  const users = await prisma.user.findMany({ where: { active: true }, select: { id: true, name: true } });
+  const users = await prisma.user.findMany({ where: { active: true, role: 'EMPLOYEE', ...(loja ? { loja } : {}) }, select: { id: true, name: true, jornadaEntrada: true } });
   const userIds = users.map((user) => user.id);
   const folgaMap = await carregarFolgasPorUsuario(userIds);
   const datasPeriodo = startDate <= endDateLimitado ? listarDatasPeriodo(startDate, endDateLimitado) : [];
@@ -1142,8 +1357,6 @@ export async function getInsights(params: {
     totalMinutos: number;
     encAuto: number;
   }>();
-
-  const [pontualH, pontualM] = env.HORARIO_ENTRADA_PONTUAL.split(':').map(Number) as [number, number];
 
   for (const user of users) {
     porFunc.set(user.id, {
@@ -1180,8 +1393,8 @@ export async function getInsights(params: {
     if (ponto.entrada) {
       f.totalMinutos += calcularMinutos(ponto);
 
-      const { hora, minuto } = getHoraMinutoSP(new Date(ponto.entrada));
-      if (hora < pontualH || (hora === pontualH && minuto <= pontualM)) {
+      const jornadaEntrada = users.find((user) => user.id === ponto.userId)?.jornadaEntrada ?? env.HORARIO_ENTRADA_PONTUAL;
+      if (isEntradaPontualPorJornada({ entrada: new Date(ponto.entrada), jornadaEntrada, dateKey: getDateOnlyKey(new Date(ponto.date)) })) {
         f.diasPontual++;
       }
     }

@@ -3,6 +3,14 @@ import fs from 'fs';
 import path from 'path';
 import { DateTime } from 'luxon';
 
+const responsavelSelect = {
+  id: true,
+  name: true,
+  initials: true,
+  avatarColor: true,
+  loja: true,
+} as const;
+
 interface CreateArteInput {
   clienteNome: string;
   clienteNumero: string;
@@ -75,7 +83,7 @@ export async function listArtes(userId: string, role: string) {
     where,
     include: {
       responsavel: {
-        select: { id: true, name: true, initials: true, avatarColor: true },
+        select: responsavelSelect,
       },
       arquivos: true,
     },
@@ -109,7 +117,7 @@ export async function createArte(data: CreateArteInput) {
         },
         include: {
           responsavel: {
-            select: { id: true, name: true, initials: true, avatarColor: true },
+            select: responsavelSelect,
           },
           arquivos: true,
         },
@@ -150,7 +158,7 @@ export async function updateArte(id: string, data: UpdateArteInput) {
     data: updateData,
     include: {
       responsavel: {
-        select: { id: true, name: true, initials: true, avatarColor: true },
+        select: responsavelSelect,
       },
       arquivos: true,
     },
@@ -164,7 +172,7 @@ export async function updateArteStatus(id: string, status: 'TODO' | 'DOING' | 'R
     data: { status },
     include: {
       responsavel: {
-        select: { id: true, name: true, initials: true, avatarColor: true },
+        select: responsavelSelect,
       },
       arquivos: true,
     },
@@ -212,7 +220,7 @@ export async function addArquivos(arteId: string, files: Express.Multer.File[]) 
     where: { id: arteId },
     include: {
       responsavel: {
-        select: { id: true, name: true, initials: true, avatarColor: true },
+        select: responsavelSelect,
       },
       arquivos: true,
     },
