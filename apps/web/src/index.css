@@ -3952,6 +3952,11 @@ body {
   /* Calendário compacto abaixo do relógio */
   .ponto-grid-calendar {
     display: block !important;
+    order: 2;
+  }
+
+  .ponto-grid-clock {
+    order: 1;
   }
 
   .ponto-grid-calendar .ponto-calendar {
@@ -6484,6 +6489,27 @@ input[type="date"] { color-scheme: dark; }
   .ponto-metrics-row {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 10px;
+    margin-left: 0;
+    width: 100%;
+  }
+
+  /* Card progresso ocupa a linha inteira e centraliza */
+  .ponto-metric-card-compact:last-child {
+    grid-column: 1 / -1;
+    align-items: center;
+    text-align: center;
+  }
+
+  .ponto-metric-card-compact:last-child .ponto-metric-main {
+    align-items: center;
+  }
+
+  .ponto-metric-card-compact:last-child .ponto-metric-progress {
+    width: 100%;
+  }
+
+  .ponto-metric-card-compact:last-child .ponto-progress-dots {
+    justify-content: center;
   }
 
   .ponto-metric-number {
