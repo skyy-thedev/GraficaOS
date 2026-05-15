@@ -1357,7 +1357,7 @@ body {
 }
 
 @media (max-width: 900px) {
-  .page-wrapper {
+  .page-wrapper:not(.ponto-page) {
     padding-left: 16px !important;
     padding-right: 16px !important;
   }
@@ -3425,7 +3425,7 @@ body {
     padding-right: 10px !important;
   }
 
-  .page-wrapper {
+  .page-wrapper:not(.ponto-page) {
     padding: 14px !important;
     gap: 14px !important;
   }
@@ -3757,7 +3757,7 @@ body {
 
 /* --- Small mobile (<=480px) --- */
 @media (max-width: 480px) {
-  .page-wrapper {
+  .page-wrapper:not(.ponto-page) {
     padding: 10px !important;
     gap: 10px !important;
   }
@@ -3882,7 +3882,7 @@ body {
   }
 
   .ponto-page {
-    padding: 12px !important;
+    padding: 12px 12px 80px !important;
     gap: 12px !important;
   }
 
@@ -3890,8 +3890,7 @@ body {
     gap: 12px;
   }
 
-  /* No mobile só o relógio + botão + timeline são essenciais */
-  .ponto-grid-calendar,
+  /* Calendário aparece abaixo do relógio em coluna única */
   .ponto-grid-detail,
   .ponto-grid-history {
     display: none !important;
@@ -3948,6 +3947,38 @@ body {
 
   .ponto-timeline-time {
     font-size: 15px !important;
+  }
+
+  /* Calendário compacto abaixo do relógio */
+  .ponto-grid-calendar {
+    display: block !important;
+  }
+
+  .ponto-grid-calendar .ponto-calendar {
+    padding: 10px 8px;
+  }
+
+  .ponto-grid-calendar .ponto-cal-header,
+  .ponto-grid-calendar .ponto-cal-grid {
+    gap: 4px;
+  }
+
+  .ponto-grid-calendar .ponto-cal-cell {
+    min-height: 34px;
+    font-size: 11px;
+  }
+
+  .ponto-grid-calendar .ponto-cal-day-label {
+    font-size: 9px;
+  }
+
+  .ponto-grid-calendar .ponto-cal-legend {
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+
+  .ponto-grid-calendar .ponto-cal-legend-item {
+    font-size: 10px;
   }
 }
 
