@@ -879,10 +879,12 @@ export function FluxoVendasPage() {
                   <CardTitle>Nova venda / orçamento</CardTitle>
                   <div className="pricing-catalog-meta">Cliente opcional · produto obrigatório · cálculo automático</div>
                 </div>
-                <Button variant="outline" onClick={() => setIsPricingDialogOpen(true)} style={isAdmin ? undefined : { display: 'none' }}>
-                  <Settings2 size={16} />
-                  Gerir catálogo
-                </Button>
+                {isAdmin && (
+                  <Button variant="outline" onClick={() => setIsPricingDialogOpen(true)}>
+                    <Settings2 size={16} />
+                    Gerir catálogo
+                  </Button>
+                )}
               </div>
             </CardHeader>
             <CardContent>
