@@ -233,14 +233,19 @@ export function PricingManagerDialog({ open, onOpenChange }: PricingManagerDialo
   const handleSave = async () => {
     if (!draft) return;
     const payload = buildRequestFromDraft(draft);
+    console.log('[PricingManagerDialog] handleSave payload:', JSON.stringify(payload, null, 2));
 
-    if (selectedProductId) {
-      await updateProduct.mutateAsync({ id: selectedProductId, data: payload });
-      return;
+    try {
+      if (selectedProductId) {
+        await updateProduct.mutateAsync({ id: selectedProductId, data: payload });
+        return;
+      }
+      const created = await createProduct.mutateAsync(payload);
+      setSelectedProductId(created.id);
+    } catch (err: unknown) {
+      const axiosErr = err as { response?: { data?: unknown } };
+      console.error('[PricingManagerDialog] save error response:', JSON.stringify(axiosErr.response?.data, null, 2));
     }
-
-    const created = await createProduct.mutateAsync(payload);
-    setSelectedProductId(created.id);
   };
 
   const effectiveMode = draft?.isOutsourced ? 'OUTSOURCED' : (draft?.pricingMode ?? 'PROGRESSIVE');

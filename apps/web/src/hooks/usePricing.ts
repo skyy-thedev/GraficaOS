@@ -86,8 +86,11 @@ export function useUpdatePricingProduct() {
         message: product.name,
       });
     },
-    onError: () => {
-      addToast({ icon: '❌', title: 'Erro ao salvar produto premium' });
+    onError: (error: unknown) => {
+      const axiosError = error as { response?: { data?: { message?: string; errors?: { path: string; message: string }[] } } };
+      const details = axiosError.response?.data?.errors?.map((e) => `${e.path}: ${e.message}`).join(' | ');
+      const message = details ?? axiosError.response?.data?.message ?? undefined;
+      addToast({ icon: '❌', title: 'Erro ao salvar produto premium', message });
     },
   });
 }
