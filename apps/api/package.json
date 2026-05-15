@@ -10,6 +10,7 @@
     "db:migrate:deploy": "prisma migrate deploy",
     "db:seed": "prisma db seed",
     "db:sync-pricing": "tsx prisma/syncPricingCatalog.ts",
+    "db:migrate-catalog-v32": "tsx prisma/migrate-catalog-v32.ts",
     "db:studio": "prisma studio",
     "db:generate": "prisma generate"
   },
