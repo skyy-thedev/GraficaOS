@@ -815,48 +815,52 @@ export function PontoPage() {
             </div>
           </section>
 
-          <section className="ponto-card ponto-grid-panel ponto-grid-calendar">
-              <div className="ponto-card-header">
-                <Calendar size={16} />
-                <span>{format(hoje, 'MMMM yyyy', { locale: ptBR })}</span>
-                <span className="ponto-header-count">{totalRegistrosMes}</span>
+        </div>
+
+        {/* Calendário — fora do grid, sempre abaixo do relógio */}
+        <section className="ponto-card ponto-grid-calendar">
+            <div className="ponto-card-header">
+              <Calendar size={16} />
+              <span>{format(hoje, 'MMMM yyyy', { locale: ptBR })}</span>
+              <span className="ponto-header-count">{totalRegistrosMes}</span>
+            </div>
+            <div className="ponto-calendar">
+              <div className="ponto-cal-header">
+                {['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'].map((day) => (
+                  <span key={day} className="ponto-cal-day-label">{day}</span>
+                ))}
               </div>
-              <div className="ponto-calendar">
-                <div className="ponto-cal-header">
-                  {['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'].map((day) => (
-                    <span key={day} className="ponto-cal-day-label">{day}</span>
-                  ))}
-                </div>
-                <div className="ponto-cal-grid">
-                  {calendarDays.map((cell, index) => {
-                    if (cell.day === 0) return <span key={index} className="ponto-cal-empty" />;
+              <div className="ponto-cal-grid">
+                {calendarDays.map((cell, index) => {
+                  if (cell.day === 0) return <span key={index} className="ponto-cal-empty" />;
 
-                    const isToday = cell.day === hoje.getDate();
-                    const clickable = !!cell.status && cell.status !== 'future' && cell.status !== 'weekend';
+                  const isToday = cell.day === hoje.getDate();
+                  const clickable = !!cell.status && cell.status !== 'future' && cell.status !== 'weekend';
 
-                    return (
-                      <button
-                        type="button"
-                        key={index}
-                        className={`ponto-cal-cell ponto-cal-${cell.status}${isToday ? ' ponto-cal-today' : ''}${selectedDay === cell.day ? ' ponto-cal-selected' : ''}${clickable ? ' is-clickable' : ''}`}
-                        title={cell.tooltip}
-                        disabled={!clickable}
-                        onClick={() => setSelectedDay(cell.day)}
-                      >
-                        {cell.day}
-                      </button>
-                    );
-                  })}
-                </div>
-                <div className="ponto-cal-legend">
-                  <span className="ponto-cal-legend-item"><span className="ponto-cal-dot" style={{ background: 'var(--green)' }} /> Completo</span>
-                  <span className="ponto-cal-legend-item"><span className="ponto-cal-dot" style={{ background: 'var(--yellow)' }} /> Parcial</span>
-                  <span className="ponto-cal-legend-item"><span className="ponto-cal-dot" style={{ background: 'var(--red)' }} /> Falta</span>
-                  <span className="ponto-cal-legend-item"><span className="ponto-cal-dot" style={{ background: 'var(--accent)' }} /> Enc. Auto</span>
-                </div>
+                  return (
+                    <button
+                      type="button"
+                      key={index}
+                      className={`ponto-cal-cell ponto-cal-${cell.status}${isToday ? ' ponto-cal-today' : ''}${selectedDay === cell.day ? ' ponto-cal-selected' : ''}${clickable ? ' is-clickable' : ''}`}
+                      title={cell.tooltip}
+                      disabled={!clickable}
+                      onClick={() => setSelectedDay(cell.day)}
+                    >
+                      {cell.day}
+                    </button>
+                  );
+                })}
               </div>
-          </section>
+              <div className="ponto-cal-legend">
+                <span className="ponto-cal-legend-item"><span className="ponto-cal-dot" style={{ background: 'var(--green)' }} /> Completo</span>
+                <span className="ponto-cal-legend-item"><span className="ponto-cal-dot" style={{ background: 'var(--yellow)' }} /> Parcial</span>
+                <span className="ponto-cal-legend-item"><span className="ponto-cal-dot" style={{ background: 'var(--red)' }} /> Falta</span>
+                <span className="ponto-cal-legend-item"><span className="ponto-cal-dot" style={{ background: 'var(--accent)' }} /> Enc. Auto</span>
+              </div>
+            </div>
+        </section>
 
+        <div className="ponto-detail-history-grid">
           <section className="ponto-card ponto-grid-panel ponto-grid-detail">
             <div className="ponto-card-header">
               <Sparkles size={15} />
@@ -965,7 +969,7 @@ export function PontoPage() {
               </div>
             )}
           </section>
-        </div>
+        </div>{/* fecha ponto-detail-history-grid */}
       </div>
     </>
   );

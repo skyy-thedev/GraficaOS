@@ -1602,6 +1602,13 @@ body {
   max-width: 100%;
 }
 
+.ponto-detail-history-grid {
+  display: grid;
+  gap: 20px;
+  grid-template-columns: minmax(0, 1fr);
+  width: 100%;
+}
+
 .ponto-layout-main,
 .ponto-layout-side {
   display: flex;
@@ -2364,10 +2371,16 @@ body {
   }
 
   .ponto-layout-grid {
-    grid-template-columns: minmax(0, 1.55fr) minmax(300px, 0.9fr) minmax(320px, 0.95fr);
-    grid-template-areas:
-      'clock calendar detail'
-      'history history history';
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas: 'clock';
+    align-items: stretch;
+  }
+
+  .ponto-detail-history-grid {
+    display: grid;
+    grid-template-columns: minmax(300px, 0.9fr) minmax(320px, 0.95fr);
+    grid-template-areas: 'detail history';
+    gap: 12px;
     align-items: stretch;
   }
 
@@ -3965,14 +3978,16 @@ body {
     font-size: 15px !important;
   }
 
-  /* Calendário compacto abaixo do relógio */
+  /* Calendário é agora externo ao grid — sempre full-width */
   .ponto-grid-calendar {
     display: block !important;
-    order: 2;
+    width: 100%;
+    box-sizing: border-box;
   }
 
-  .ponto-grid-clock {
-    order: 1;
+  /* Detalhe e histórico ocultos no mobile */
+  .ponto-detail-history-grid {
+    display: none !important;
   }
 
   .ponto-grid-calendar .ponto-calendar {
