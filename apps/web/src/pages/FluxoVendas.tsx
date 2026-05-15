@@ -879,7 +879,7 @@ export function FluxoVendasPage() {
                   <CardTitle>Nova venda / orçamento</CardTitle>
                   <div className="pricing-catalog-meta">Cliente opcional · produto obrigatório · cálculo automático</div>
                 </div>
-                <Button variant="outline" onClick={() => setIsPricingDialogOpen(true)}>
+                <Button variant="outline" onClick={() => setIsPricingDialogOpen(true)} style={isAdmin ? undefined : { display: 'none' }}>
                   <Settings2 size={16} />
                   Gerir catálogo
                 </Button>
@@ -1760,7 +1760,7 @@ export function FluxoVendasPage() {
         </Card>
       </div>
 
-      <PricingManagerDialog open={isPricingDialogOpen} onOpenChange={setIsPricingDialogOpen} />
+      {isAdmin && <PricingManagerDialog open={isPricingDialogOpen} onOpenChange={setIsPricingDialogOpen} />}
     </>
   );
 }
