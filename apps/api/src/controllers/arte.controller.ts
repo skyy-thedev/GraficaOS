@@ -2,11 +2,13 @@ import { Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
 import * as arteService from '../services/arte.service';
 
+const produtoTipoSchema = z.enum(['AZULEJO', 'BANNER', 'ADESIVO', 'ADESIVO_RECORTE', 'LONA', 'PLACA', 'FAIXA', 'CARTAO_VISITA', 'PANFLETO', 'FOLDER', 'PERFURADO', 'ENVELOPAMENTO', 'BACKLIGHT', 'OUTRO']);
+
 const createArteSchema = z.object({
   clienteNome: z.string().min(1, 'Nome do cliente é obrigatório'),
   clienteNumero: z.string().min(1, 'Número do cliente é obrigatório'),
   orcamentoNum: z.string().min(1).optional(),
-  produto: z.enum(['AZULEJO', 'BANNER', 'ADESIVO', 'PLACA', 'FAIXA', 'OUTRO']),
+  produto: produtoTipoSchema,
   quantidade: z.number().int().min(1).optional(),
   larguraCm: z.number().int().positive('Largura deve ser positiva'),
   alturaCm: z.number().int().positive('Altura deve ser positiva'),
@@ -20,7 +22,7 @@ const updateArteSchema = z.object({
   clienteNome: z.string().min(1).optional(),
   clienteNumero: z.string().min(1).optional(),
   orcamentoNum: z.string().min(1).optional(),
-  produto: z.enum(['AZULEJO', 'BANNER', 'ADESIVO', 'PLACA', 'FAIXA', 'OUTRO']).optional(),
+  produto: produtoTipoSchema.optional(),
   quantidade: z.number().int().min(1).optional(),
   larguraCm: z.number().int().positive().optional(),
   alturaCm: z.number().int().positive().optional(),

@@ -11,6 +11,8 @@ import {
   CalendarDays,
   Factory,
   Repeat2,
+  ShoppingCart,
+  FileSpreadsheet,
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { useState } from 'react';
@@ -32,11 +34,15 @@ export function MobileNav() {
       : [{ to: '/ponto', icon: Clock, label: 'Ponto' }]),
     ...(!isAdmin ? [{ to: '/checklist', icon: CheckSquare, label: 'Checklist' }] : []),
     ...(!isAdmin ? [{ to: '/artes', icon: Palette, label: 'Artes' }] : []),
+    ...(!isAdmin ? [{ to: '/fluxo-vendas', icon: ShoppingCart, label: 'Vendas' }] : []),
+    ...(!isAdmin ? [{ to: '/relatorio', icon: FileSpreadsheet, label: 'Relatório' }] : []),
   ];
 
   // Itens extras (admin)
   const extraItems = [
     ...(isAdmin ? [{ to: '/gestao-operacional', icon: Factory, label: 'Operação' }] : []),
+    ...(isAdmin ? [{ to: '/fluxo-vendas', icon: ShoppingCart, label: 'Vendas' }] : []),
+    ...(isAdmin ? [{ to: '/relatorio', icon: FileSpreadsheet, label: 'Relatório' }] : []),
     ...(isAdmin ? [{ to: '/clientes-recorrentes', icon: Repeat2, label: 'Clientes' }] : []),
     ...(isAdmin ? [{ to: '/funcionarios', icon: Users, label: 'Equipe' }] : []),
     ...(isAdmin ? [{ to: '/artes', icon: Palette, label: 'Artes' }] : []),

@@ -308,10 +308,10 @@ export function GestaoPontosPage() {
     <>
       <Topbar title="Gestão de Pontos" />
 
-      <div className="page-wrapper p-7 flex flex-col gap-6">
+      <div className="page-wrapper gestao-pontos-page p-7 flex flex-col gap-6">
         {/* Stat cards */}
         
-        <div className="dash-stats-grid">
+        <div className="dash-stats-grid gestao-pontos-stats-grid">
           <div className="dash-stat-card dash-stat-purple">
             <div className="dash-stat-icon-wrap dash-stat-icon-purple"><ClipboardList size={18} /></div>
             <div className="dash-stat-info">
@@ -381,7 +381,7 @@ export function GestaoPontosPage() {
                 type="date"
                 value={filterDate}
                 onChange={(e) => setFilterDate(e.target.value)}
-                style={{ width: 180 }}
+                style={{ width: '100%', maxWidth: 180 }}
               />
               <Select value={filterUserId} onValueChange={setFilterUserId}>
                 <SelectTrigger className="mobile-select" style={{ width: '100%', maxWidth: 220 }}>
@@ -411,7 +411,7 @@ export function GestaoPontosPage() {
                 <p className="text-sm">Nenhum registro encontrado para este filtro.</p>
               </div>
             ) : (
-              <div className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))' }}>
+              <div className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(min(280px, 100%), 1fr))' }}>
                 {pontosExibidos.map((p) => {
                   const horas = calcularHoras(p);
                   const status = getStatusLabel(p);
@@ -460,7 +460,7 @@ export function GestaoPontosPage() {
                         </span>
                       </div>
 
-                      <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))' }}>
+                      <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(min(120px, 100%), 1fr))' }}>
                         <MetricTime label="Entrada" value={p.entrada} color="var(--green)" dimColor="var(--green-dim)" />
                         <MetricTime label="Almoço" value={p.almoco} color="var(--yellow)" dimColor="var(--yellow-dim)" />
                         <MetricTime label="Retorno" value={p.retorno} color="var(--blue)" dimColor="var(--blue-dim)" />

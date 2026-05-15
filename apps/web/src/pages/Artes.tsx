@@ -69,6 +69,7 @@ import { CSS } from '@dnd-kit/utilities';
 import { format } from 'date-fns';
 import { API_BASE } from '@/services/api';
 import { LOJA_LABELS, LOJA_OPTIONS } from '@/utils/lojas';
+import { extrairNumeroContato, normalizarTexto } from '@/utils/arteAnalytics';
 
 function formatarMedidasCm(larguraCm: number, alturaCm: number): string {
   return `${larguraCm}×${alturaCm}cm`;
@@ -92,8 +93,16 @@ const PRODUTO_OPTIONS: { value: ProdutoTipo; label: string }[] = [
   { value: 'AZULEJO', label: 'Azulejo' },
   { value: 'BANNER', label: 'Banner' },
   { value: 'ADESIVO', label: 'Adesivo' },
+  { value: 'ADESIVO_RECORTE', label: 'Adesivo de recorte' },
+  { value: 'LONA', label: 'Lona' },
   { value: 'PLACA', label: 'Placa' },
   { value: 'FAIXA', label: 'Faixa' },
+  { value: 'CARTAO_VISITA', label: 'Cartão de visita' },
+  { value: 'PANFLETO', label: 'Panfleto' },
+  { value: 'FOLDER', label: 'Folder' },
+  { value: 'PERFURADO', label: 'Perfurado' },
+  { value: 'ENVELOPAMENTO', label: 'Envelopamento' },
+  { value: 'BACKLIGHT', label: 'Backlight' },
   { value: 'OUTRO', label: 'Outro' },
 ];
 
@@ -299,6 +308,7 @@ function ArteFormModal({
   editArte?: Arte | null;
 }) {
   const { data: users } = useUsers();
+  const { data: artes } = useArtes();
   const createArte = useCreateArte();
   const updateArte = useUpdateArte();
   const activeUsers = users?.filter((u) => u.active) ?? [];
@@ -318,6 +328,45 @@ function ArteFormModal({
   };
 
   const [form, setForm] = useState(defaultForm);
+  const [showClienteSuggestions, setShowClienteSuggestions] = useState(false);
+
+  const clientesExistentes = useMemo(() => {
+    const mapa = new Map<string, { nome: string; numero: string; total: number; ultimoOrcamento: string }>();
+
+    for (const arte of artes ?? []) {
+      const chave = `${normalizarTexto(arte.clienteNome)}::${extrairNumeroContato(arte.clienteNumero)}`;
+      const atual = mapa.get(chave);
+
+      if (atual) {
+        atual.total += 1;
+        atual.ultimoOrcamento = arte.orcamentoNum;
+      } else {
+        mapa.set(chave, {
+          nome: arte.clienteNome,
+          numero: arte.clienteNumero,
+          total: 1,
+          ultimoOrcamento: arte.orcamentoNum,
+        });
+      }
+    }
+
+    return Array.from(mapa.values()).sort((a, b) => b.total - a.total || a.nome.localeCompare(b.nome));
+  }, [artes]);
+
+  const clienteSuggestions = useMemo(() => {
+    const termo = normalizarTexto(`${form.clienteNome} ${form.clienteNumero}`);
+
+    if (!termo) {
+      return clientesExistentes.slice(0, 6);
+    }
+
+    return clientesExistentes
+      .filter((cliente) => {
+        const alvo = normalizarTexto(`${cliente.nome} ${cliente.numero} ${cliente.ultimoOrcamento}`);
+        return alvo.includes(termo);
+      })
+      .slice(0, 6);
+  }, [clientesExistentes, form.clienteNome, form.clienteNumero]);
 
   // Preenche form quando editando — useEffect para reagir a mudanças de editArte
   useEffect(() => {
@@ -339,6 +388,15 @@ function ArteFormModal({
       setForm(defaultForm);
     }
   }, [editArte]);
+
+  const applyClienteSuggestion = (cliente: { nome: string; numero: string }) => {
+    setForm((current) => ({
+      ...current,
+      clienteNome: cliente.nome,
+      clienteNumero: cliente.numero,
+    }));
+    setShowClienteSuggestions(false);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -387,12 +445,35 @@ function ArteFormModal({
             {/* Cliente */}
             <div className="space-y-2">
               <Label>Nome do Cliente *</Label>
-              <Input
-                required
-                value={form.clienteNome}
-                onChange={(e) => setForm({ ...form, clienteNome: e.target.value })}
-                placeholder="Nome do cliente"
-              />
+              <div className="cliente-suggest-wrap">
+                <Input
+                  required
+                  value={form.clienteNome}
+                  onFocus={() => setShowClienteSuggestions(true)}
+                  onChange={(e) => {
+                    setForm({ ...form, clienteNome: e.target.value });
+                    setShowClienteSuggestions(true);
+                  }}
+                  onBlur={() => window.setTimeout(() => setShowClienteSuggestions(false), 120)}
+                  placeholder="Digite para sugerir clientes existentes"
+                />
+                {!editArte && showClienteSuggestions && clienteSuggestions.length > 0 && (
+                  <div className="cliente-suggest-list">
+                    {clienteSuggestions.map((cliente) => (
+                      <button
+                        key={`${cliente.nome}-${cliente.numero}`}
+                        type="button"
+                        className="cliente-suggest-item"
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => applyClienteSuggestion(cliente)}
+                      >
+                        <span className="cliente-suggest-name">{cliente.nome}</span>
+                        <span className="cliente-suggest-meta">{cliente.numero} · {cliente.total} orçamento(s) · último {cliente.ultimoOrcamento}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
             <div className="space-y-2">
               <Label>Telefone do Cliente *</Label>

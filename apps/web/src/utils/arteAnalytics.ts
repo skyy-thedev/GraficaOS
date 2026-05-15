@@ -4,8 +4,16 @@ export const PRODUTO_LABELS: Record<ProdutoTipo, string> = {
   AZULEJO: 'Azulejo',
   BANNER: 'Banner',
   ADESIVO: 'Adesivo',
+  ADESIVO_RECORTE: 'Adesivo de recorte',
+  LONA: 'Lona',
   PLACA: 'Placa',
   FAIXA: 'Faixa',
+  CARTAO_VISITA: 'Cartão de visita',
+  PANFLETO: 'Panfleto',
+  FOLDER: 'Folder',
+  PERFURADO: 'Perfurado',
+  ENVELOPAMENTO: 'Envelopamento',
+  BACKLIGHT: 'Backlight',
   OUTRO: 'Outro',
 };
 

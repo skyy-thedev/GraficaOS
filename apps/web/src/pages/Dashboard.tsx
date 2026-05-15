@@ -1,24 +1,17 @@
 import { Topbar } from '@/components/layout/Topbar';
 import { Card, CardContent } from '@/components/ui/card';
-import { Palette, Clock, TrendingUp, AlertTriangle, CheckCircle, Users, Eye, CheckSquare, ClipboardList, BarChart3, CalendarDays, Factory, ArrowRight } from 'lucide-react';
+import { Palette, Clock, TrendingUp, AlertTriangle, CheckCircle, Users, Eye, CheckSquare, ClipboardList, BarChart3, CalendarDays, Factory, ArrowRight, DollarSign, FileSpreadsheet } from 'lucide-react';
 import { usePontos } from '@/hooks/usePonto';
 import { useArtes } from '@/hooks/useArtes';
 import { useUsers } from '@/hooks/useUsers';
 import { useAuth } from '@/hooks/useAuth';
 import { useChecklistHoje } from '@/hooks/useChecklist';
+import { useVendas } from '@/hooks/useVendas';
 import { useNavigate } from 'react-router-dom';
-import { format } from 'date-fns';
-import type { Arte, Ponto, ProdutoTipo } from '@/types';
+import { format, startOfMonth } from 'date-fns';
+import type { Arte, Ponto } from '@/types';
 import { formatarHora, getAgoraSP } from '@/utils/timezone';
-
-const PRODUTO_LABELS: Record<ProdutoTipo, string> = {
-  AZULEJO: 'Azulejo',
-  BANNER: 'Banner',
-  ADESIVO: 'Adesivo',
-  PLACA: 'Placa',
-  FAIXA: 'Faixa',
-  OUTRO: 'Outro',
-};
+import { PRODUTO_LABELS } from '@/utils/arteAnalytics';
 
 const STATUS_LABELS: Record<string, { label: string; color: string }> = {
   DOING: { label: 'Produção', color: 'var(--blue)' },
@@ -31,6 +24,7 @@ export function DashboardPage() {
   const { data: allPontos } = usePontos();
   const { data: users } = useUsers();
   const { data: checklistHoje } = useChecklistHoje();
+  const { data: vendas } = useVendas();
   const navigate = useNavigate();
 
   const greeting = () => {
@@ -66,6 +60,12 @@ export function DashboardPage() {
   const meuPontoHoje = pontosHoje.find((p) => p.userId === user?.id) ?? null;
   const minhasArtesAtivas = (artes ?? []).filter((arte) => arte.responsavelId === user?.id && arte.status !== 'DONE');
   const minhasUrgentes = minhasArtesAtivas.filter((arte) => arte.urgencia === 'HIGH').length;
+  const visibleVendas = (vendas ?? []).filter((venda) => isAdmin || venda.responsavelId === user?.id);
+  const vendasHoje = visibleVendas.filter((venda) => (venda.createdAt ?? '').slice(0, 10) === todayLocal);
+  const inicioMes = format(startOfMonth(new Date()), 'yyyy-MM-dd');
+  const vendasMes = visibleVendas.filter((venda) => (venda.createdAt ?? '').slice(0, 10) >= inicioMes);
+  const receitaHoje = vendasHoje.filter((venda) => venda.status === 'CONCLUIDA').reduce((sum, venda) => sum + venda.valorTotal, 0);
+  const receitaMes = vendasMes.filter((venda) => venda.status === 'CONCLUIDA').reduce((sum, venda) => sum + venda.valorTotal, 0);
 
   const quickActions = isAdmin
     ? [
@@ -73,6 +73,7 @@ export function DashboardPage() {
         { title: 'Analytics', description: 'Acompanhar méritos, faltas e atrasos da equipe.', to: '/ponto/analytics', icon: BarChart3, color: 'var(--blue)' },
         { title: 'Agenda', description: 'Priorizar prazos, urgências e carga por responsável.', to: '/agenda-producao', icon: CalendarDays, color: 'var(--yellow)' },
         { title: 'Operação', description: 'Ler gargalos, revisão e distribuição atual.', to: '/gestao-operacional', icon: Factory, color: 'var(--green)' },
+        { title: 'Relatório', description: 'Cruzar vendas, pontos e produtividade em um só painel.', to: '/relatorio', icon: FileSpreadsheet, color: 'var(--blue)' },
       ]
     : [
         { title: 'Registrar ponto', description: 'Abrir sua jornada e acompanhar o expediente.', to: '/ponto', icon: Clock, color: 'var(--accent)' },
@@ -139,10 +140,10 @@ export function DashboardPage() {
     <>
       <Topbar title={`${greeting()}, ${user?.name?.split(' ')[0]}!`} />
 
-      <div className="page-wrapper p-7 flex flex-col gap-5">
+      <div className="page-wrapper dashboard-page p-7 flex flex-col gap-5">
 
         {/* ===== STAT CARDS ===== */}
-        <div className="dash-stats-grid">
+        <div className="dash-stats-grid dashboard-stats-grid">
           {isAdmin && (
             <div className="dash-stat-card dash-stat-blue interactive-card" data-glow="blue" onClick={() => navigate('/gestao-pontos')}>
               <div className="dash-stat-icon-wrap dash-stat-icon-blue">
@@ -210,21 +211,45 @@ export function DashboardPage() {
             </div>
             <span className="dash-stat-sub">{clFeitos}/{clTotal} itens</span>
           </div>
+
+          <div className="dash-stat-card dash-stat-blue interactive-card" data-glow="blue" onClick={() => navigate('/relatorio?preset=day&focus=sales')}>
+            <div className="dash-stat-icon-wrap dash-stat-icon-blue">
+              <DollarSign size={18} />
+            </div>
+            <div className="dash-stat-info">
+              <span className="dash-stat-number">{vendasHoje.length}</span>
+              <span className="dash-stat-label">Vendas hoje</span>
+            </div>
+            <span className="dash-stat-sub">R$ {receitaHoje.toFixed(2)}</span>
+          </div>
+
+          <div className="dash-stat-card dash-stat-purple interactive-card" data-glow="accent" onClick={() => navigate('/relatorio?preset=month&focus=sales')}>
+            <div className="dash-stat-icon-wrap dash-stat-icon-purple">
+              <FileSpreadsheet size={18} />
+            </div>
+            <div className="dash-stat-info">
+              <span className="dash-stat-number">R$ {receitaMes.toFixed(2)}</span>
+              <span className="dash-stat-label">Receita no mês</span>
+            </div>
+            <span className="dash-stat-sub">{vendasMes.length} registro(s)</span>
+          </div>
         </div>
 
-        <div className="grid gap-5" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))' }}>
+        <div className="dash-action-grid">
           {quickActions.map((action) => (
             <Card key={action.to}>
-              <CardContent className="p-5 flex flex-col gap-4 interactive-card" data-glow="accent" onClick={() => navigate(action.to)}>
-                <div className="flex items-center justify-between gap-3">
-                  <div className="dash-stat-icon-wrap" style={{ background: 'var(--bg3)', color: action.color }}>
-                    <action.icon size={18} />
+              <CardContent className="dash-action-card p-5 interactive-card" data-glow="accent" onClick={() => navigate(action.to)}>
+                <div className="dash-action-head">
+                  <div className="dash-action-body">
+                    <div className="dash-action-icon" style={{ background: 'var(--bg3)', color: action.color }}>
+                      <action.icon size={18} />
+                    </div>
+                    <div className="dash-action-copy">
+                      <div className="dash-action-title">{action.title}</div>
+                      <div className="dash-action-description">{action.description}</div>
+                    </div>
                   </div>
-                  <ArrowRight size={16} style={{ color: 'var(--text3)' }} />
-                </div>
-                <div>
-                  <div style={{ fontWeight: 700, fontSize: 16, color: 'var(--text1)' }}>{action.title}</div>
-                  <div style={{ marginTop: 6, color: 'var(--text2)', fontSize: 13, lineHeight: 1.5 }}>{action.description}</div>
+                  <ArrowRight size={16} className="dash-action-arrow" style={{ color: 'var(--text3)' }} />
                 </div>
               </CardContent>
             </Card>
@@ -240,17 +265,17 @@ export function DashboardPage() {
             <span className="dash-section-count">{resumoInteligente.length}</span>
           </div>
           <CardContent className="dash-section-body">
-            <div className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))' }}>
+            <div className="smart-summary-grid">
               {resumoInteligente.map((item) => (
-                <div key={item.id} style={{ border: '1px solid var(--border2)', borderRadius: 16, background: 'var(--bg2)', padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
+                <div key={item.id} className="smart-summary-card interactive-card" data-glow="accent">
                   <div>
-                    <div style={{ fontWeight: 700, color: 'var(--text1)' }}>{item.titulo}</div>
-                    <div style={{ marginTop: 6, color: 'var(--text2)', fontSize: 13, lineHeight: 1.5 }}>{item.descricao}</div>
+                    <div className="smart-summary-title">{item.titulo}</div>
+                    <div className="smart-summary-text">{item.descricao}</div>
                   </div>
                   <button
+                    type="button"
                     onClick={() => navigate(item.to)}
-                    className="inline-flex items-center gap-2"
-                    style={{ color: 'var(--accent)', fontWeight: 600, background: 'transparent', border: 'none', padding: 0, cursor: 'pointer' }}
+                    className="smart-summary-link inline-flex items-center gap-2"
                   >
                     {item.acao}
                     <ArrowRight size={14} />

@@ -93,7 +93,7 @@ export function GestaoOperacionalPage() {
   return (
     <>
       <Topbar title="Gestão Operacional" />
-      <div className="page-wrapper p-7 flex flex-col gap-6">
+      <div className="page-wrapper oper-page p-7 flex flex-col gap-6">
         <Card>
           <CardContent className="pt-6 flex items-center gap-3 flex-wrap">
             <Select value={filterLoja} onValueChange={(value) => setFilterLoja(value as 'all' | Loja)}>
@@ -113,7 +113,7 @@ export function GestaoOperacionalPage() {
           </CardContent>
         </Card>
 
-        <div className="dash-stats-grid">
+        <div className="dash-stats-grid oper-stats-grid">
           <div className="dash-stat-card dash-stat-blue">
             <div className="dash-stat-icon-wrap dash-stat-icon-blue"><Activity size={18} /></div>
             <div className="dash-stat-info">
@@ -161,7 +161,11 @@ export function GestaoOperacionalPage() {
                       <div className="oper-card-sub" style={{ fontSize: 14, marginTop: 4 }}>{LOJA_LABELS[item.loja]} · {item.volumeAtivo} em aberto · {item.concluidas} concluídas</div>
                     </div>
                   </div>
-                  <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(88px, 1fr))', width: '100%', maxWidth: 460 }}>
+                  <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(min(88px, 100%), 1fr))', width: '100%', maxWidth: 560 }}>
+                    <div>
+                      <div className="oper-card-sub" style={{ fontSize: 12 }}>Concluídas</div>
+                      <div className="oper-card-emphasis" style={{ fontSize: 22, marginTop: 4 }}>{item.concluidas}</div>
+                    </div>
                     <div>
                       <div className="oper-card-sub" style={{ fontSize: 12 }}>Urgências</div>
                       <div className="oper-card-emphasis" style={{ fontSize: 22, marginTop: 4 }}>{item.urgenciasResolvidas}</div>

@@ -75,8 +75,8 @@ export function ClientesRecorrentesPage() {
   return (
     <>
       <Topbar title="Cliente Recorrente" />
-      <div className="page-wrapper p-7 flex flex-col gap-6">
-        <div className="dash-stats-grid">
+      <div className="page-wrapper clientes-page p-7 flex flex-col gap-6">
+        <div className="dash-stats-grid clientes-stats-grid">
           <div className="dash-stat-card dash-stat-purple">
             <div className="dash-stat-icon-wrap dash-stat-icon-purple"><Repeat2 size={18} /></div>
             <div className="dash-stat-info">
@@ -117,11 +117,12 @@ export function ClientesRecorrentesPage() {
               </div>
             </div>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent>
+            <div className="clientes-history-grid">
             {clientes.map((cliente) => {
               const telefone = extrairNumeroContato(cliente.numero);
               return (
-                <div key={cliente.id} style={{ border: '1px solid var(--border2)', borderRadius: 14, padding: 16, background: 'var(--bg2)' }}>
+                <div key={cliente.id} className="cliente-history-card" style={{ border: '1px solid var(--border2)', borderRadius: 14, padding: 16, background: 'var(--bg2)' }}>
                   <div className="flex items-start justify-between gap-4 flex-wrap">
                     <div>
                       <div style={{ fontWeight: 800, fontSize: 16 }}>{cliente.nome}</div>
@@ -140,7 +141,7 @@ export function ClientesRecorrentesPage() {
                     </div>
                   </div>
 
-                  <div className="grid gap-3 mt-4" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))' }}>
+                  <div className="grid gap-3 mt-4" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(min(180px, 100%), 1fr))' }}>
                     <div>
                       <div style={{ color: 'var(--text3)', fontSize: 11 }}>Última atualização</div>
                       <div style={{ fontWeight: 700 }}>
@@ -157,9 +158,9 @@ export function ClientesRecorrentesPage() {
                     </div>
                   </div>
 
-                  <div className="space-y-2 mt-4">
+                  <div className="cliente-history-list space-y-2 mt-4">
                     {cliente.historico.map((arte) => (
-                      <div key={arte.id} className="flex items-center justify-between gap-3 flex-wrap" style={{ padding: 12, borderRadius: 10, background: 'var(--bg3)' }}>
+                      <div key={arte.id} className="cliente-history-item flex items-center justify-between gap-3 flex-wrap" style={{ padding: 12, borderRadius: 10, background: 'var(--bg3)' }}>
                         <div>
                           <div style={{ fontWeight: 700 }}>{arte.codigo} · {PRODUTO_LABELS[arte.produto]}</div>
                           <div style={{ color: 'var(--text3)', fontSize: 12 }}>{arte.responsavel.name} · {arte.larguraCm}×{arte.alturaCm}cm</div>
@@ -174,6 +175,7 @@ export function ClientesRecorrentesPage() {
                 </div>
               );
             })}
+            </div>
             {clientes.length === 0 && <div style={{ color: 'var(--text3)' }}>Nenhum cliente encontrado com os filtros atuais.</div>}
           </CardContent>
         </Card>

@@ -15,7 +15,7 @@ interface CreateArteInput {
   clienteNome: string;
   clienteNumero: string;
   orcamentoNum?: string;
-  produto: 'AZULEJO' | 'BANNER' | 'ADESIVO' | 'PLACA' | 'FAIXA' | 'OUTRO';
+  produto: 'AZULEJO' | 'BANNER' | 'ADESIVO' | 'ADESIVO_RECORTE' | 'LONA' | 'PLACA' | 'FAIXA' | 'CARTAO_VISITA' | 'PANFLETO' | 'FOLDER' | 'PERFURADO' | 'ENVELOPAMENTO' | 'BACKLIGHT' | 'OUTRO';
   quantidade?: number;
   larguraCm: number;
   alturaCm: number;
@@ -29,7 +29,7 @@ interface UpdateArteInput {
   clienteNome?: string;
   clienteNumero?: string;
   orcamentoNum?: string;
-  produto?: 'AZULEJO' | 'BANNER' | 'ADESIVO' | 'PLACA' | 'FAIXA' | 'OUTRO';
+  produto?: 'AZULEJO' | 'BANNER' | 'ADESIVO' | 'ADESIVO_RECORTE' | 'LONA' | 'PLACA' | 'FAIXA' | 'CARTAO_VISITA' | 'PANFLETO' | 'FOLDER' | 'PERFURADO' | 'ENVELOPAMENTO' | 'BACKLIGHT' | 'OUTRO';
   quantidade?: number;
   larguraCm?: number;
   alturaCm?: number;

@@ -11,6 +11,17 @@ import type {
   CreateArteRequest,
   UpdateArteRequest,
   ArteStatus,
+  Venda,
+  CreateVendaRequest,
+  UpdateVendaRequest,
+  PricingSettings,
+  ProductFinish,
+  PricingProduct,
+  CreatePricingProductRequest,
+  UpdatePricingProductRequest,
+  UpdatePricingSettingsRequest,
+  PricingPreviewRequest,
+  PricingPreviewResult,
   ChecklistItemConfig,
   ItemHoje,
   RelatorioDia,
@@ -132,6 +143,42 @@ export const artesApi = {
 
   deleteArquivo: (arteId: string, arquivoId: string) =>
     api.delete(`/artes/${arteId}/arquivos/${arquivoId}`),
+};
+
+// ===== Vendas =====
+export const vendasApi = {
+  list: () =>
+    api.get<Venda[]>('/vendas').then((r) => r.data),
+
+  create: (data: CreateVendaRequest) =>
+    api.post<Venda>('/vendas', data).then((r) => r.data),
+
+  update: (id: string, data: UpdateVendaRequest) =>
+    api.put<Venda>(`/vendas/${id}`, data).then((r) => r.data),
+};
+
+// ===== Precificação Premium =====
+export const pricingApi = {
+  settings: () =>
+    api.get<PricingSettings>('/pricing/settings').then((r) => r.data),
+
+  updateSettings: (data: UpdatePricingSettingsRequest) =>
+    api.put<PricingSettings>('/pricing/settings', data).then((r) => r.data),
+
+  finishes: () =>
+    api.get<ProductFinish[]>('/pricing/finishes').then((r) => r.data),
+
+  products: () =>
+    api.get<PricingProduct[]>('/pricing/products').then((r) => r.data),
+
+  createProduct: (data: CreatePricingProductRequest) =>
+    api.post<PricingProduct>('/pricing/products', data).then((r) => r.data),
+
+  updateProduct: (id: string, data: UpdatePricingProductRequest) =>
+    api.put<PricingProduct>(`/pricing/products/${id}`, data).then((r) => r.data),
+
+  preview: (data: PricingPreviewRequest) =>
+    api.post<PricingPreviewResult>('/pricing/preview', data).then((r) => r.data),
 };
 
 // ===== Checklist =====

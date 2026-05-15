@@ -12,6 +12,8 @@ import { GestaoOperacionalPage } from '@/pages/GestaoOperacional';
 import { ClientesRecorrentesPage } from '@/pages/ClientesRecorrentes';
 import { ChecklistPage } from '@/pages/ChecklistDiario';
 import { FuncionariosPage } from '@/pages/Funcionarios';
+import { FluxoVendasPage } from '@/pages/FluxoVendas';
+import { RelatorioPage } from '@/pages/Relatorio';
 import { ValidarComprovantePage } from '@/pages/ValidarComprovante';
 
 export function App() {
@@ -32,6 +34,9 @@ export function App() {
           <Route path="/artes" element={<ArtesPage />} />
           <Route path="/agenda-producao" element={<AgendaProducaoPage />} />
           <Route path="/gestao-operacional" element={<GestaoOperacionalPage />} />
+          <Route path="/fluxo-vendas" element={<FluxoVendasPage />} />
+          <Route path="/relatorio" element={<RelatorioPage />} />
+          <Route path="/precificacao-premium" element={<Navigate to="/fluxo-vendas" replace />} />
           <Route path="/clientes-recorrentes" element={<ClientesRecorrentesPage />} />
           <Route path="/funcionarios" element={<FuncionariosPage />} />
         </Route>

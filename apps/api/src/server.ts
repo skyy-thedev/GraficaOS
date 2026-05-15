@@ -12,6 +12,8 @@ import { userRoutes } from './routes/user.routes';
 import { pontoRoutes } from './routes/ponto.routes';
 import { arteRoutes } from './routes/arte.routes';
 import { checklistRoutes } from './routes/checklist.routes';
+import { pricingRoutes } from './routes/pricing.routes';
+import { vendaRoutes } from './routes/venda.routes';
 import { fecharPontosAbertos } from './jobs/fecharPontos';
 
 const app = express();
@@ -48,6 +50,8 @@ app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/pontos', pontoRoutes);
 app.use('/api/artes', arteRoutes);
+app.use('/api/pricing', pricingRoutes);
+app.use('/api/vendas', vendaRoutes);
 app.use('/api/checklist', checklistRoutes);
 
 // Health check

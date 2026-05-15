@@ -358,9 +358,9 @@ export function FuncionariosPage() {
     <>
       <Topbar title="Funcionários" />
 
-      <div className="page-wrapper p-7 flex flex-col gap-6">
+      <div className="page-wrapper funcionarios-page p-7 flex flex-col gap-6">
         {/* Stat cards */}
-        <div className="dash-stats-grid">
+        <div className="dash-stats-grid funcionarios-stats-grid">
           <div className="dash-stat-card dash-stat-purple">
             <div className="dash-stat-icon-wrap dash-stat-icon-purple"><UsersIcon size={18} /></div>
             <div className="dash-stat-info">

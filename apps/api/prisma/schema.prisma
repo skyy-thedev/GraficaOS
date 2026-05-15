@@ -28,6 +28,7 @@ model User {
   pontos Ponto[]
   folgas FolgaConfig[]
   artes  Arte[]  @relation("ArteResponsavel")
+  vendas Venda[] @relation("VendaResponsavel")
   checklistRegistros ChecklistRegistro[]
 }
 
@@ -98,6 +99,131 @@ model Arquivo {
   createdAt    DateTime @default(now())
 }
 
+model Venda {
+  id              String          @id @default(cuid())
+  codigo          String          @unique
+  clienteNome     String?
+  clienteDocumento String?
+  clienteTelefone String?
+  produto         ProdutoTipo?
+  produtoNome     String
+  pricingProductId String?
+  quantidade      Int             @default(1)
+  valorUnitario   Float
+  valorTotal      Float
+  valorOriginal   Float?
+  descontoPercent Float           @default(0)
+  subtotalBase    Float?
+  acabamentosValor Float          @default(0)
+  urgenciaValor   Float           @default(0)
+  sizeVariationId String?
+  sizeVariationNome String?
+  acabamentos     Json?
+  pricingSnapshot Json?
+  urgenciaNivel   PricingUrgencyLevel @default(NONE)
+  status          VendaStatus     @default(AGUARDANDO)
+  formaPagamento  FormaPagamento?
+  observacoes     String?
+  responsavelId   String
+  responsavel     User            @relation("VendaResponsavel", fields: [responsavelId], references: [id])
+  pricingProduct  Product?        @relation(fields: [pricingProductId], references: [id], onDelete: SetNull)
+  finalizadaEm    DateTime?
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  @@index([responsavelId, createdAt])
+  @@index([pricingProductId])
+}
+
+model PricingSettings {
+  id                   String   @id @default("default")
+  outsourcedMultiplier Float    @default(2.5)
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+}
+
+model Product {
+  id               String               @id @default(cuid())
+  name             String               @unique
+  description      String?
+  category         String
+  premiumCategory  String?
+  legacyProdutoTipo ProdutoTipo?
+  isOutsourced     Boolean              @default(false)
+  supplierCost     Float?
+  pricingMode      PricingMode          @default(PROGRESSIVE)
+  fixedUnitPrice   Float?
+  urgencyEnabled   Boolean              @default(true)
+  active           Boolean              @default(true)
+  sortOrder        Int                  @default(0)
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @updatedAt
+
+  pricingTiers     PricingTier[]
+  sizeVariations   ProductSizeVariation[]
+  finishLinks      ProductFinishProduct[]
+  vendas           Venda[]
+
+  @@index([active, sortOrder])
+  @@index([category, premiumCategory])
+}
+
+model PricingTier {
+  id          String   @id @default(cuid())
+  productId   String
+  minQuantity Int
+  maxQuantity Int?
+  unitPrice   Float
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  product     Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([productId, minQuantity])
+}
+
+model ProductFinish {
+  id          String       @id @default(cuid())
+  name        String       @unique
+  type        String
+  value       Float
+  pricingType ModifierType
+  active      Boolean      @default(true)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  products    ProductFinishProduct[]
+
+  @@index([active, name])
+}
+
+model ProductFinishProduct {
+  productId String
+  finishId  String
+
+  product   Product       @relation(fields: [productId], references: [id], onDelete: Cascade)
+  finish    ProductFinish @relation(fields: [finishId], references: [id], onDelete: Cascade)
+
+  @@id([productId, finishId])
+}
+
+model ProductSizeVariation {
+  id          String       @id @default(cuid())
+  productId   String
+  name        String
+  widthCm     Float?
+  heightCm    Float?
+  value       Float        @default(0)
+  pricingType ModifierType @default(FIXED)
+  sortOrder   Int          @default(0)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  product     Product      @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([productId, sortOrder])
+}
+
 enum Role {
   ADMIN
   EMPLOYEE
@@ -125,9 +251,49 @@ enum ProdutoTipo {
   AZULEJO
   BANNER
   ADESIVO
+  ADESIVO_RECORTE
+  LONA
   PLACA
   FAIXA
+  CARTAO_VISITA
+  PANFLETO
+  FOLDER
+  PERFURADO
+  ENVELOPAMENTO
+  BACKLIGHT
   OUTRO
+}
+
+enum VendaStatus {
+  AGUARDANDO
+  CONCLUIDA
+}
+
+enum FormaPagamento {
+  PIX
+  DINHEIRO
+  DEBITO
+  CREDITO
+  BOLETO
+  TRANSFERENCIA
+  OUTRO
+}
+
+enum PricingMode {
+  PROGRESSIVE
+  FIXED
+  OUTSOURCED
+}
+
+enum ModifierType {
+  FIXED
+  PERCENTAGE
+}
+
+enum PricingUrgencyLevel {
+  NONE
+  PRIORITARIO
+  EXPRESS
 }
 
 model ChecklistItem {

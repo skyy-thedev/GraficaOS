@@ -1,5 +1,6 @@
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
+import { syncPricingCatalog } from '../src/services/pricing.service';
 
 const prisma = new PrismaClient();
 
@@ -18,6 +19,13 @@ async function main() {
   console.log('🌱 Iniciando seed do banco de dados...');
 
   // Limpa dados existentes
+  await prisma.productFinishProduct.deleteMany();
+  await prisma.productSizeVariation.deleteMany();
+  await prisma.pricingTier.deleteMany();
+  await prisma.product.deleteMany();
+  await prisma.productFinish.deleteMany();
+  await prisma.pricingSettings.deleteMany();
+  await prisma.venda.deleteMany();
   await prisma.checklistRegistro.deleteMany();
   await prisma.checklistItem.deleteMany();
   await prisma.arquivo.deleteMany();
@@ -100,6 +108,348 @@ async function main() {
   });
 
   console.log('✅ Usuários criados');
+
+  const pricingSettings = await prisma.pricingSettings.create({
+    data: {
+      id: 'default',
+      outsourcedMultiplier: 2.5,
+    },
+  });
+
+  const finishes = await Promise.all([
+    prisma.productFinish.create({ data: { name: 'Encadernação', type: 'BINDING', value: 19.9, pricingType: 'FIXED' } }),
+    prisma.productFinish.create({ data: { name: 'Plastificação A4', type: 'LAMINATION', value: 14.9, pricingType: 'FIXED' } }),
+    prisma.productFinish.create({ data: { name: 'Corte Especial', type: 'SPECIAL_CUT', value: 9.9, pricingType: 'FIXED' } }),
+    prisma.productFinish.create({ data: { name: 'Vinco/Dobra', type: 'CREASE_FOLD', value: 4.9, pricingType: 'FIXED' } }),
+    prisma.productFinish.create({ data: { name: 'Laminação Fosca', type: 'LAMINATION', value: 30, pricingType: 'PERCENTAGE' } }),
+    prisma.productFinish.create({ data: { name: 'Laminação Holográfica', type: 'LAMINATION', value: 50, pricingType: 'PERCENTAGE' } }),
+  ]);
+
+  const finishLinks = finishes.map((finish) => ({ finishId: finish.id }));
+
+  await prisma.product.create({
+    data: {
+      name: 'Impressão A4 PB',
+      description: 'Linha interna para produção rápida com tabela progressiva por volume.',
+      category: 'Impressão Interna',
+      premiumCategory: 'Operação Expressa',
+      pricingMode: 'PROGRESSIVE',
+      urgencyEnabled: true,
+      sortOrder: 10,
+      pricingTiers: {
+        create: [
+          { minQuantity: 1, maxQuantity: 1, unitPrice: 3.0 },
+          { minQuantity: 2, maxQuantity: 10, unitPrice: 2.5 },
+          { minQuantity: 11, maxQuantity: 30, unitPrice: 1.9 },
+          { minQuantity: 31, maxQuantity: 100, unitPrice: 1.4 },
+          { minQuantity: 101, maxQuantity: null, unitPrice: 1.0 },
+        ],
+      },
+      finishLinks: { create: finishLinks },
+      sizeVariations: {
+        create: [{ name: 'Padrão A4', widthCm: 21, heightCm: 29.7, value: 0, pricingType: 'FIXED', sortOrder: 0 }],
+      },
+    },
+  });
+
+  await prisma.product.create({
+    data: {
+      name: 'Impressão A4 Colorido',
+      description: 'Acabamento colorido premium com ganho progressivo por tiragem.',
+      category: 'Impressão Interna',
+      premiumCategory: 'Linha Corporativa',
+      pricingMode: 'PROGRESSIVE',
+      urgencyEnabled: true,
+      sortOrder: 20,
+      pricingTiers: {
+        create: [
+          { minQuantity: 1, maxQuantity: 1, unitPrice: 8.9 },
+          { minQuantity: 2, maxQuantity: 10, unitPrice: 7.5 },
+          { minQuantity: 11, maxQuantity: 30, unitPrice: 5.9 },
+          { minQuantity: 31, maxQuantity: 100, unitPrice: 4.5 },
+          { minQuantity: 101, maxQuantity: null, unitPrice: 2.9 },
+        ],
+      },
+      finishLinks: { create: finishLinks },
+      sizeVariations: {
+        create: [{ name: 'Padrão A4', widthCm: 21, heightCm: 29.7, value: 0, pricingType: 'FIXED', sortOrder: 0 }],
+      },
+    },
+  });
+
+  await prisma.product.create({
+    data: {
+      name: 'Impressão A3 PB',
+      description: 'Formato ampliado em preto e branco com precificação por escala.',
+      category: 'Impressão Interna',
+      premiumCategory: 'Grandes Formatos',
+      pricingMode: 'PROGRESSIVE',
+      urgencyEnabled: true,
+      sortOrder: 30,
+      pricingTiers: {
+        create: [
+          { minQuantity: 1, maxQuantity: 1, unitPrice: 6.9 },
+          { minQuantity: 2, maxQuantity: 10, unitPrice: 5.9 },
+          { minQuantity: 11, maxQuantity: 30, unitPrice: 4.5 },
+          { minQuantity: 31, maxQuantity: 100, unitPrice: 3.2 },
+          { minQuantity: 101, maxQuantity: null, unitPrice: 2.2 },
+        ],
+      },
+      finishLinks: { create: finishLinks },
+      sizeVariations: {
+        create: [{ name: 'Padrão A3', widthCm: 29.7, heightCm: 42, value: 0, pricingType: 'FIXED', sortOrder: 0 }],
+      },
+    },
+  });
+
+  await prisma.product.create({
+    data: {
+      name: 'Impressão A3 Colorido',
+      description: 'Formato premium colorido para materiais high-ticket e apresentações.',
+      category: 'Impressão Interna',
+      premiumCategory: 'Grandes Formatos',
+      pricingMode: 'PROGRESSIVE',
+      urgencyEnabled: true,
+      sortOrder: 40,
+      pricingTiers: {
+        create: [
+          { minQuantity: 1, maxQuantity: 1, unitPrice: 15.9 },
+          { minQuantity: 2, maxQuantity: 10, unitPrice: 13.9 },
+          { minQuantity: 11, maxQuantity: 30, unitPrice: 10.9 },
+          { minQuantity: 31, maxQuantity: 100, unitPrice: 7.9 },
+          { minQuantity: 101, maxQuantity: null, unitPrice: 4.9 },
+        ],
+      },
+      finishLinks: { create: finishLinks },
+      sizeVariations: {
+        create: [{ name: 'Padrão A3', widthCm: 29.7, heightCm: 42, value: 0, pricingType: 'FIXED', sortOrder: 0 }],
+      },
+    },
+  });
+
+  await prisma.product.create({
+    data: {
+      name: 'Plastificação RG',
+      description: 'Serviço rápido de plastificação no formato RG para balcão e retirada expressa.',
+      category: 'Acabamentos Rápidos',
+      premiumCategory: 'Operação Expressa',
+      pricingMode: 'FIXED',
+      fixedUnitPrice: 8.9,
+      urgencyEnabled: true,
+      sortOrder: 50,
+      finishLinks: { create: finishLinks },
+    },
+  });
+
+  await prisma.product.create({
+    data: {
+      name: 'Plastificação A4',
+      description: 'Serviço avulso de plastificação A4 com valor fixo para venda rápida.',
+      category: 'Acabamentos Rápidos',
+      premiumCategory: 'Operação Expressa',
+      pricingMode: 'FIXED',
+      fixedUnitPrice: 14.9,
+      urgencyEnabled: true,
+      sortOrder: 60,
+      finishLinks: { create: finishLinks },
+    },
+  });
+
+  await prisma.product.create({
+    data: {
+      name: 'Foto 10x15',
+      description: 'Foto instantânea com curva progressiva até valor balcão otimizado para grandes tiragens.',
+      category: 'Fotografia Instantânea',
+      premiumCategory: 'Operação Expressa',
+      pricingMode: 'PROGRESSIVE',
+      urgencyEnabled: true,
+      sortOrder: 70,
+      pricingTiers: {
+        create: [
+          { minQuantity: 1, maxQuantity: 1, unitPrice: 5.5 },
+          { minQuantity: 2, maxQuantity: 10, unitPrice: 5.0 },
+          { minQuantity: 11, maxQuantity: 30, unitPrice: 4.5 },
+          { minQuantity: 31, maxQuantity: 100, unitPrice: 4.0 },
+          { minQuantity: 101, maxQuantity: null, unitPrice: 3.5 },
+        ],
+      },
+      finishLinks: { create: finishLinks },
+    },
+  });
+
+  await prisma.product.create({
+    data: {
+      name: 'Foto 13x18',
+      description: 'Foto premium 13x18 com desconto progressivo para lotes maiores.',
+      category: 'Fotografia Instantânea',
+      premiumCategory: 'Linha Corporativa',
+      pricingMode: 'PROGRESSIVE',
+      urgencyEnabled: true,
+      sortOrder: 80,
+      pricingTiers: {
+        create: [
+          { minQuantity: 1, maxQuantity: 1, unitPrice: 10.0 },
+          { minQuantity: 2, maxQuantity: 10, unitPrice: 9.0 },
+          { minQuantity: 11, maxQuantity: 30, unitPrice: 8.5 },
+          { minQuantity: 31, maxQuantity: 100, unitPrice: 7.8 },
+          { minQuantity: 101, maxQuantity: null, unitPrice: 7.0 },
+        ],
+      },
+      finishLinks: { create: finishLinks },
+    },
+  });
+
+  await prisma.product.create({
+    data: {
+      name: 'Foto 15x20',
+      description: 'Foto premium 15x20 com curva progressiva para venda avulsa e tiragens maiores.',
+      category: 'Fotografia Instantânea',
+      premiumCategory: 'Linha Corporativa',
+      pricingMode: 'PROGRESSIVE',
+      urgencyEnabled: true,
+      sortOrder: 90,
+      pricingTiers: {
+        create: [
+          { minQuantity: 1, maxQuantity: 1, unitPrice: 10.0 },
+          { minQuantity: 2, maxQuantity: 10, unitPrice: 9.0 },
+          { minQuantity: 11, maxQuantity: 30, unitPrice: 8.5 },
+          { minQuantity: 31, maxQuantity: 100, unitPrice: 7.8 },
+          { minQuantity: 101, maxQuantity: null, unitPrice: 7.0 },
+        ],
+      },
+      finishLinks: { create: finishLinks },
+    },
+  });
+
+  await prisma.product.createMany({
+    data: [
+      // ─── Cartões de Visita ────────────────────────────────────────────────
+      {
+        name: 'Couché Brilho 50un',
+        description: 'Cartão couché 300g, formato 88x48mm, 4x0 (frente), refile. Lote de 50 unidades.',
+        category: 'Terceirização Estratégica',
+        premiumCategory: 'Cartões de Visita',
+        pricingMode: 'OUTSOURCED',
+        isOutsourced: true,
+        supplierCost: 36.99,
+        urgencyEnabled: true,
+        sortOrder: 110,
+        legacyProdutoTipo: 'CARTAO_VISITA',
+      },
+      {
+        name: 'Couché Brilho 100un F/V',
+        description: 'Cartão couché 300g, formato 88x48mm, 4x4 (frente e verso), refile. Lote de 100 unidades.',
+        category: 'Terceirização Estratégica',
+        premiumCategory: 'Cartões de Visita',
+        pricingMode: 'OUTSOURCED',
+        isOutsourced: true,
+        supplierCost: 45.99,
+        urgencyEnabled: true,
+        sortOrder: 120,
+        legacyProdutoTipo: 'CARTAO_VISITA',
+      },
+      {
+        name: 'Premium 600g 100un',
+        description: 'Cartão couché fosco 600g, 88x48mm, 4x4, laminação fosca, empastamento. Lote de 100 unidades.',
+        category: 'Terceirização Estratégica',
+        premiumCategory: 'Cartões de Visita',
+        pricingMode: 'OUTSOURCED',
+        isOutsourced: true,
+        supplierCost: 73.99,
+        urgencyEnabled: true,
+        sortOrder: 130,
+        legacyProdutoTipo: 'CARTAO_VISITA',
+      },
+      {
+        name: 'Premium Luxo 250un',
+        description: 'Cartão couché fosco 600g, 88x48mm, 4x4, Soft Touch + Hot Stamping Dourado, empastamento. Lote de 250 unidades.',
+        category: 'Terceirização Estratégica',
+        premiumCategory: 'Cartões de Visita',
+        pricingMode: 'OUTSOURCED',
+        isOutsourced: true,
+        supplierCost: 114.99,
+        urgencyEnabled: true,
+        sortOrder: 140,
+        legacyProdutoTipo: 'CARTAO_VISITA',
+      },
+      {
+        name: 'Mini Cartão 100un',
+        description: 'Cartão reciclato 240g, formato 43x48mm, 4x0, verniz localizado, refile. Lote de 100 unidades.',
+        category: 'Terceirização Estratégica',
+        premiumCategory: 'Cartões de Visita',
+        pricingMode: 'OUTSOURCED',
+        isOutsourced: true,
+        supplierCost: 51.99,
+        urgencyEnabled: true,
+        sortOrder: 150,
+        legacyProdutoTipo: 'CARTAO_VISITA',
+      },
+      {
+        name: 'PVC Premium 50un',
+        description: 'Cartão PVC Premium, formato 85x54mm, 4x0, 4 cantos arredondados. Lote de 50 unidades.',
+        category: 'Terceirização Estratégica',
+        premiumCategory: 'Cartões de Visita',
+        pricingMode: 'OUTSOURCED',
+        isOutsourced: true,
+        supplierCost: 57.99,
+        urgencyEnabled: true,
+        sortOrder: 160,
+        legacyProdutoTipo: 'CARTAO_VISITA',
+      },
+      // ─── Flyers ───────────────────────────────────────────────────────────
+      {
+        name: 'Flyer Couché 10x15 1000un',
+        description: 'Flyer couché 115g, 10x15cm, 4x0, sem enobrecimento, refile. Lote de 1000 unidades.',
+        category: 'Terceirização Estratégica',
+        premiumCategory: 'Flyers e Panfletos',
+        pricingMode: 'OUTSOURCED',
+        isOutsourced: true,
+        supplierCost: 89.99,
+        urgencyEnabled: true,
+        sortOrder: 170,
+        legacyProdutoTipo: 'PANFLETO',
+      },
+      {
+        name: 'Flyer A5 F/V 2500un',
+        description: 'Flyer couché 150g, A5, 4x4 (frente e verso), verniz total, refile. Lote de 2500 unidades.',
+        category: 'Terceirização Estratégica',
+        premiumCategory: 'Flyers e Panfletos',
+        pricingMode: 'OUTSOURCED',
+        isOutsourced: true,
+        supplierCost: 189.99,
+        urgencyEnabled: true,
+        sortOrder: 180,
+        legacyProdutoTipo: 'PANFLETO',
+      },
+      // ─── Folders ──────────────────────────────────────────────────────────
+      {
+        name: 'Folder 1 Dobra 500un',
+        description: 'Folder couché 170g, A4, 4x4, laminação fosca, 1 dobra. Lote de 500 unidades.',
+        category: 'Terceirização Estratégica',
+        premiumCategory: 'Folders e Institucionais',
+        pricingMode: 'OUTSOURCED',
+        isOutsourced: true,
+        supplierCost: 249.99,
+        urgencyEnabled: true,
+        sortOrder: 190,
+        legacyProdutoTipo: 'FOLDER',
+      },
+      {
+        name: 'Folder 2 Dobras 1000un',
+        description: 'Folder couché 170g, A3, 4x4, verniz total, 2 dobras. Lote de 1000 unidades.',
+        category: 'Terceirização Estratégica',
+        premiumCategory: 'Folders e Institucionais',
+        pricingMode: 'OUTSOURCED',
+        isOutsourced: true,
+        supplierCost: 429.99,
+        urgencyEnabled: true,
+        sortOrder: 200,
+        legacyProdutoTipo: 'FOLDER',
+      },
+    ],
+  });
+
+  console.log(`✅ Precificação premium criada · multiplicador ${pricingSettings.outsourcedMultiplier}x`);
 
   // Cria artes de exemplo
   await prisma.arte.createMany({
@@ -259,6 +609,8 @@ async function main() {
   }
 
   console.log('✅ Checklist criado');
+  await syncPricingCatalog();
+  console.log('✅ Catálogo comercial sincronizado');
   console.log('🎉 Seed finalizado com sucesso!');
 }
 

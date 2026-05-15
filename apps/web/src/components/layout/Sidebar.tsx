@@ -12,6 +12,8 @@ import {
   CalendarDays,
   Factory,
   Repeat2,
+  ShoppingCart,
+  FileSpreadsheet,
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { useQueryClient } from '@tanstack/react-query';
@@ -46,6 +48,8 @@ export function Sidebar() {
         ] : []),
         ...(!isAdmin ? [{ to: '/checklist', icon: CheckSquare, label: 'Checklist Diário', badge: checklistPendentes, badgeType: (checklistAtrasados ? 'warning' : 'normal') as 'warning' | 'normal' }] : []),
         ...(!isAdmin ? [{ to: '/artes', icon: Palette, label: 'Artes / Gráfica', badge: artesAtivasCount, badgeType: 'normal' as const }] : []),
+        ...(!isAdmin ? [{ to: '/fluxo-vendas', icon: ShoppingCart, label: 'Fluxo de Vendas', badge: 0, badgeType: 'normal' as const }] : []),
+        ...(!isAdmin ? [{ to: '/relatorio', icon: FileSpreadsheet, label: 'Relatório', badge: 0, badgeType: 'normal' as const }] : []),
       ],
     },
     ...(isAdmin
@@ -55,6 +59,8 @@ export function Sidebar() {
             items: [
               { to: '/artes', icon: Palette, label: 'Artes / Gráfica', badge: artesAtivasCount, badgeType: 'normal' as const },
               { to: '/gestao-operacional', icon: Factory, label: 'Operação', badge: 0, badgeType: 'normal' as const },
+              { to: '/fluxo-vendas', icon: ShoppingCart, label: 'Fluxo de Vendas', badge: 0, badgeType: 'normal' as const },
+              { to: '/relatorio', icon: FileSpreadsheet, label: 'Relatório', badge: 0, badgeType: 'normal' as const },
               { to: '/clientes-recorrentes', icon: Repeat2, label: 'Clientes', badge: 0, badgeType: 'normal' as const },
               { to: '/checklist', icon: CheckSquare, label: 'Checklist Diário', badge: checklistPendentes, badgeType: (checklistAtrasados ? 'warning' : 'normal') as 'warning' | 'normal' },
               { to: '/funcionarios', icon: Users, label: 'Funcionários', badge: 0, badgeType: 'normal' as const },

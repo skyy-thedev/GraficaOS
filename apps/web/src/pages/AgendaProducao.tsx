@@ -6,6 +6,7 @@ import { Topbar } from '@/components/layout/Topbar';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { ArteDetailDialog } from '@/components/arte/ArteDetailDialog';
 import {
   Select,
   SelectContent,
@@ -16,7 +17,7 @@ import {
 import { useArtes } from '@/hooks/useArtes';
 import { useUsers } from '@/hooks/useUsers';
 import { useNavigate } from 'react-router-dom';
-import type { ArteStatus, Loja } from '@/types';
+import type { Arte, ArteStatus, Loja } from '@/types';
 import { LOJA_LABELS, LOJA_OPTIONS } from '@/utils/lojas';
 import { PRODUTO_LABELS, STATUS_LABELS, URGENCIA_LABELS, getStatusPeso, getUrgenciaPeso, isArteAtiva, isArteAtrasada } from '@/utils/arteAnalytics';
 
@@ -32,6 +33,7 @@ export function AgendaProducaoPage() {
   const [windowStart, setWindowStart] = useState(hoje);
   const [windowDays, setWindowDays] = useState<7 | 14>(7);
   const [selectedDateKey, setSelectedDateKey] = useState(format(hoje, 'yyyy-MM-dd'));
+  const [detailArte, setDetailArte] = useState<Arte | null>(null);
 
   useEffect(() => {
     setSelectedDateKey(format(windowStart, 'yyyy-MM-dd'));
@@ -147,8 +149,8 @@ export function AgendaProducaoPage() {
   return (
     <>
       <Topbar title="Agenda de Produção" />
-      <div className="page-wrapper p-7 flex flex-col gap-6">
-        <div className="dash-stats-grid">
+      <div className="page-wrapper agenda-page p-7 flex flex-col gap-6">
+        <div className="dash-stats-grid agenda-stats-grid">
           <div className="dash-stat-card dash-stat-red">
             <div className="dash-stat-icon-wrap dash-stat-icon-red"><AlertTriangle size={18} /></div>
             <div className="dash-stat-info">
@@ -350,18 +352,25 @@ export function AgendaProducaoPage() {
               </CardHeader>
               <CardContent className="space-y-3">
                 {agendaOrdenada.slice(0, 8).map((arte) => (
-                  <div key={arte.id} className="agenda-priority-card" style={{ padding: 14, borderRadius: 14 }}>
+                  <button
+                    key={arte.id}
+                    type="button"
+                    className="agenda-priority-card agenda-priority-button"
+                    style={{ padding: 14, borderRadius: 14 }}
+                    onClick={() => setDetailArte(arte)}
+                  >
                     <div className="flex items-center justify-between gap-2 mb-2">
                       <strong className="agenda-priority-title">{arte.codigo}</strong>
                       <Badge variant={arte.urgencia === 'HIGH' ? 'danger' : arte.urgencia === 'NORMAL' ? 'warning' : 'info'}>{URGENCIA_LABELS[arte.urgencia]}</Badge>
                     </div>
                     <div className="agenda-priority-title" style={{ fontSize: 18 }}>{arte.clienteNome}</div>
                     <div className="agenda-priority-sub" style={{ fontSize: 15, marginTop: 6 }}>{PRODUTO_LABELS[arte.produto]} · {arte.responsavel.name}</div>
+                    <div className="agenda-priority-link">Abrir orçamento {arte.orcamentoNum}</div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, marginTop: 10, color: 'var(--text2)', fontSize: 14, fontWeight: 600 }}>
                       <span>{arte.prazo ? format(new Date(arte.prazo), 'dd/MM') : 'Sem prazo'}</span>
                       <span>{LOJA_LABELS[arte.responsavel.loja]}</span>
                     </div>
-                  </div>
+                  </button>
                 ))}
                 {agendaOrdenada.length === 0 && <div style={{ color: 'var(--text2)', fontSize: 16 }}>Nenhuma arte ativa no momento.</div>}
               </CardContent>
@@ -399,6 +408,8 @@ export function AgendaProducaoPage() {
           </div>
         </div>
       </div>
+
+      <ArteDetailDialog arte={detailArte} open={!!detailArte} onClose={() => setDetailArte(null)} />
     </>
   );
 }

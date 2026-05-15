@@ -826,11 +826,11 @@ export function PontoAnalyticsPage() {
 
         {/* Stat Cards */}
         {loadingMetricas ? (
-          <div className="dash-stats-grid">
+          <div className="dash-stats-grid pa-stats-grid">
             {[1, 2, 3, 4].map((i) => <div key={i} className="skeleton" style={{ height: 100 }} />)}
           </div>
         ) : metricas ? (
-          <div className="dash-stats-grid">
+          <div className="dash-stats-grid pa-stats-grid">
             <div className="dash-stat-card dash-stat-purple">
               <div className="dash-stat-icon-wrap dash-stat-icon-purple"><Clock size={18} /></div>
               <div className="dash-stat-info">
@@ -985,7 +985,7 @@ export function PontoAnalyticsPage() {
                         </div>
                       </div>
 
-                      <div className="pa-mini-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: 10 }}>
+                      <div className="pa-mini-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(120px, 100%), 1fr))', gap: 10 }}>
                         <ResumoCardMini label="Presença" value={formatarPercentual(funcionario.percentualPresenca)} color="var(--green)" />
                         <ResumoCardMini label="Pontualidade" value={formatarPercentual(funcionario.percentualPontualidade)} color="var(--blue)" />
                         <ResumoCardMini label="Faltas" value={String(funcionario.faltas)} color={funcionario.faltas > 0 ? 'var(--red)' : 'var(--text1)'} />
