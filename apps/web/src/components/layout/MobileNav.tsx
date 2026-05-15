@@ -35,7 +35,6 @@ export function MobileNav() {
     ...(!isAdmin ? [{ to: '/checklist', icon: CheckSquare, label: 'Checklist' }] : []),
     ...(!isAdmin ? [{ to: '/artes', icon: Palette, label: 'Artes' }] : []),
     ...(!isAdmin ? [{ to: '/fluxo-vendas', icon: ShoppingCart, label: 'Vendas' }] : []),
-    ...(!isAdmin ? [{ to: '/relatorio', icon: FileSpreadsheet, label: 'Relatório' }] : []),
   ];
 
   // Itens extras (admin)

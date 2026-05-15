@@ -1026,7 +1026,7 @@ body {
 }
 
 .vendas-top-stats-grid {
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .report-filter-row {
@@ -1036,7 +1036,7 @@ body {
 }
 
 .report-stats-grid {
-  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .report-grid {
@@ -2345,7 +2345,12 @@ body {
   }
 
   .ponto-page {
-    padding: 24px 24px 28px;
+    padding: 12px 12px 80px;
+    gap: 12px;
+  }
+
+  .ponto-layout-grid {
+    gap: 12px;
   }
 
   .ponto-layout-grid {
@@ -2570,7 +2575,7 @@ body {
 /* --- Stat cards grid --- */
 .dash-stats-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(160px, 100%), 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
   width: 100%;
   justify-items: stretch;
@@ -6455,7 +6460,8 @@ input[type="date"] { color-scheme: dark; }
 
 @media (max-width: 768px) {
   .ponto-metrics-row {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
   }
 
   .ponto-metric-number {
@@ -6463,19 +6469,22 @@ input[type="date"] { color-scheme: dark; }
   }
 
   .ponto-clock-section {
-    padding: 20px 16px;
+    padding: 16px 14px;
   }
 
   .ponto-clock-shell,
   .ponto-clock-main {
-    gap: 12px;
+    gap: 10px;
   }
 
   .ponto-summary-row-inline,
-  .ponto-timeline-cards,
   .ponto-day-detail-grid,
   .ponto-week-card-grid {
     grid-template-columns: 1fr;
+  }
+
+  .ponto-timeline-cards {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .ponto-grid-history .ponto-card-body.ponto-week-cards {
