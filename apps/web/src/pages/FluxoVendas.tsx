@@ -150,10 +150,11 @@ function isBannerProduct(product: Pick<PricingProduct, 'name'> | null) {
 }
 
 function parsePaperVariationName(name: string) {
-  const [paperType, grammage] = name.split('|').map((part) => part.trim());
+  const [paperType, grammage, side] = name.split('|').map((part) => part.trim());
   return {
     paperType: paperType ?? '',
     grammage: grammage ?? '',
+    side: side ?? '',
   };
 }
 
@@ -246,6 +247,7 @@ export function FluxoVendasPage() {
   const [selectedProductGroup, setSelectedProductGroup] = useState<string | null>(null);
   const [impressaoSize, setImpressaoSize] = useState('A4');
   const [impressaoColor, setImpressaoColor] = useState<'PB' | 'COLORIDO'>('PB');
+  const [impressaoSide, setImpressaoSide] = useState<'Frente' | 'F+V'>('Frente');
 
   const activeProducts = useMemo(
     () => (pricingProducts ?? []).filter((product) => product.active),
@@ -326,6 +328,16 @@ export function FluxoVendasPage() {
     [activeProducts, form.pricingProductId],
   );
 
+  const impressaoSidesAvailable = useMemo((): Array<'Frente' | 'F+V'> => {
+    if (!selectedProduct || !hasPaperVariationStructure(selectedProduct)) return [];
+    const sides = [...new Set(
+      selectedProduct.sizeVariations
+        .map((v) => parsePaperVariationName(v.name).side)
+        .filter((s): s is 'Frente' | 'F+V' => s === 'Frente' || s === 'F+V'),
+    )];
+    return sides;
+  }, [selectedProduct]);
+
   const productSupportsPaperSelection = useMemo(
     () => hasPaperVariationStructure(selectedProduct),
     [selectedProduct],
@@ -384,10 +396,15 @@ export function FluxoVendasPage() {
         variationId: variation.id,
         ...parsePaperVariationName(variation.name),
       }))
-      .filter((variation) => variation.paperType === form.paperType)
+      .filter((variation) => {
+        if (variation.paperType !== form.paperType) return false;
+        // Se as variações têm dimensão de lado, filtra pelo lado selecionado
+        if (variation.side) return variation.side === impressaoSide;
+        return true;
+      })
       .map((variation) => variation.grammage)
       .filter(Boolean);
-  }, [form.paperType, productSupportsPaperSelection, selectedProduct]);
+  }, [form.paperType, impressaoSide, productSupportsPaperSelection, selectedProduct]);
 
   useEffect(() => {
     if (!productSupportsPaperSelection) return;
@@ -478,7 +495,9 @@ export function FluxoVendasPage() {
 
     const matchedVariation = selectedProduct.sizeVariations.find((variation) => {
       const parsed = parsePaperVariationName(variation.name);
-      return parsed.paperType === form.paperType && parsed.grammage === form.paperGrammage;
+      // Se a variação tem lado explícito, filtra por ele; caso contrário ignora
+      const sideMatch = !parsed.side || parsed.side === impressaoSide;
+      return parsed.paperType === form.paperType && parsed.grammage === form.paperGrammage && sideMatch;
     });
 
     if (matchedVariation && matchedVariation.id !== form.sizeVariationId) {
@@ -487,7 +506,7 @@ export function FluxoVendasPage() {
         sizeVariationId: matchedVariation.id,
       }));
     }
-  }, [form.paperGrammage, form.paperType, form.sizeVariationId, productSupportsPaperSelection, selectedProduct]);
+  }, [form.paperGrammage, form.paperType, form.sizeVariationId, impressaoSide, productSupportsPaperSelection, selectedProduct]);
 
   // Reset group when product category changes
   useEffect(() => {
@@ -696,6 +715,7 @@ export function FluxoVendasPage() {
     setSelectedProductGroup(null);
     setImpressaoSize('A4');
     setImpressaoColor('PB');
+    setImpressaoSide('Frente');
   };
 
   const addToCart = () => {
@@ -1067,6 +1087,21 @@ export function FluxoVendasPage() {
                                 className={`config-pill${impressaoColor === color ? ' config-pill-active' : ''}`}
                                 onClick={() => setImpressaoColor(color)}
                               >{color === 'PB' ? 'Preto e Branco' : 'Colorido'}</button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      {impressaoSidesAvailable.length > 0 && (
+                        <div className="space-y-2">
+                          <Label>Impressão</Label>
+                          <div className="config-option-pills">
+                            {impressaoSidesAvailable.map((side) => (
+                              <button
+                                key={side}
+                                type="button"
+                                className={`config-pill${impressaoSide === side ? ' config-pill-active' : ''}`}
+                                onClick={() => setImpressaoSide(side)}
+                              >{side === 'F+V' ? 'Frente e Verso' : 'Somente Frente'}</button>
                             ))}
                           </div>
                         </div>

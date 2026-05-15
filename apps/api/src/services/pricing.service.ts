@@ -68,24 +68,38 @@ const INITIAL_FINISHES: Array<{ name: string; type: string; value: number; prici
 ];
 
 const A4_PAPER_VARIATIONS: ProductSizeVariationInput[] = [
-  { name: 'Sulfite|75g', value: 0, pricingType: 'FIXED', sortOrder: 0 },
-  { name: 'Couchê|115g', value: 1.2, pricingType: 'FIXED', sortOrder: 10 },
-  { name: 'Couchê|170g', value: 2.2, pricingType: 'FIXED', sortOrder: 20 },
-  { name: 'Couchê|250g', value: 3.8, pricingType: 'FIXED', sortOrder: 30 },
-  { name: 'Vergê|180g', value: 2.6, pricingType: 'FIXED', sortOrder: 40 },
+  // Somente Frente — valor adicional por página sobre a faixa base
+  { name: 'Sulfite|75g|Frente', value: 0, pricingType: 'FIXED', sortOrder: 0 },
+  { name: 'Couchê|115g|Frente', value: 1.2, pricingType: 'FIXED', sortOrder: 10 },
+  { name: 'Couchê|170g|Frente', value: 2.2, pricingType: 'FIXED', sortOrder: 20 },
+  { name: 'Couchê|250g|Frente', value: 3.8, pricingType: 'FIXED', sortOrder: 30 },
+  { name: 'Vergê|180g|Frente', value: 2.6, pricingType: 'FIXED', sortOrder: 40 },
+  // Frente e Verso — acresce +0.9/página pelo segundo passe de impressão
+  { name: 'Sulfite|75g|F+V', value: 0.9, pricingType: 'FIXED', sortOrder: 50 },
+  { name: 'Couchê|115g|F+V', value: 2.1, pricingType: 'FIXED', sortOrder: 60 },
+  { name: 'Couchê|170g|F+V', value: 3.1, pricingType: 'FIXED', sortOrder: 70 },
+  { name: 'Couchê|250g|F+V', value: 4.7, pricingType: 'FIXED', sortOrder: 80 },
+  { name: 'Vergê|180g|F+V', value: 3.5, pricingType: 'FIXED', sortOrder: 90 },
 ];
 
 const A3_PAPER_VARIATIONS: ProductSizeVariationInput[] = [
-  { name: 'Sulfite|75g', value: 0, pricingType: 'FIXED', sortOrder: 0 },
-  { name: 'Couchê|115g', value: 2.4, pricingType: 'FIXED', sortOrder: 10 },
-  { name: 'Couchê|170g', value: 4.4, pricingType: 'FIXED', sortOrder: 20 },
-  { name: 'Couchê|250g', value: 7.6, pricingType: 'FIXED', sortOrder: 30 },
-  { name: 'Vergê|180g', value: 5.2, pricingType: 'FIXED', sortOrder: 40 },
+  // Somente Frente
+  { name: 'Sulfite|75g|Frente', value: 0, pricingType: 'FIXED', sortOrder: 0 },
+  { name: 'Couchê|115g|Frente', value: 2.4, pricingType: 'FIXED', sortOrder: 10 },
+  { name: 'Couchê|170g|Frente', value: 4.4, pricingType: 'FIXED', sortOrder: 20 },
+  { name: 'Couchê|250g|Frente', value: 7.6, pricingType: 'FIXED', sortOrder: 30 },
+  { name: 'Vergê|180g|Frente', value: 5.2, pricingType: 'FIXED', sortOrder: 40 },
+  // Frente e Verso — acresce +1.8/página pelo segundo passe (A3 = área dupla)
+  { name: 'Sulfite|75g|F+V', value: 1.8, pricingType: 'FIXED', sortOrder: 50 },
+  { name: 'Couchê|115g|F+V', value: 4.2, pricingType: 'FIXED', sortOrder: 60 },
+  { name: 'Couchê|170g|F+V', value: 6.2, pricingType: 'FIXED', sortOrder: 70 },
+  { name: 'Couchê|250g|F+V', value: 9.4, pricingType: 'FIXED', sortOrder: 80 },
+  { name: 'Vergê|180g|F+V', value: 7.0, pricingType: 'FIXED', sortOrder: 90 },
 ];
 
 const CARD_SIDE_VARIATIONS: ProductSizeVariationInput[] = [
   { name: 'Somente Frente', value: 0, pricingType: 'FIXED', sortOrder: 0 },
-  { name: 'Frente e Verso', value: 0, pricingType: 'FIXED', sortOrder: 10 },
+  { name: 'Frente e Verso', value: 12, pricingType: 'FIXED', sortOrder: 10 },
 ];
 
 const INITIAL_PRODUCTS: Array<{
