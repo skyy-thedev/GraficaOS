@@ -3878,7 +3878,7 @@ body {
 
 @media (max-width: 640px) {
   .dash-stats-grid {
-    grid-template-columns: 1fr !important;
+    grid-template-columns: 1fr 1fr !important;
   }
 
   .ponto-page {
@@ -3888,6 +3888,13 @@ body {
 
   .ponto-layout-grid {
     gap: 12px;
+  }
+
+  /* No mobile só o relógio + botão + timeline são essenciais */
+  .ponto-grid-calendar,
+  .ponto-grid-detail,
+  .ponto-grid-history {
+    display: none !important;
   }
 
   .ponto-clock-section {
@@ -3929,8 +3936,9 @@ body {
     width: 100%;
   }
 
+  /* Timeline 2×2 no mobile */
   .ponto-inline-register .ponto-timeline-cards {
-    grid-template-columns: 1fr;
+    grid-template-columns: 1fr 1fr;
   }
 
   .ponto-timeline-card {
@@ -3940,36 +3948,6 @@ body {
 
   .ponto-timeline-time {
     font-size: 15px !important;
-  }
-
-  .ponto-calendar {
-    padding: 12px 10px;
-  }
-
-  .ponto-cal-header,
-  .ponto-cal-grid {
-    gap: 4px;
-  }
-
-  .ponto-cal-cell {
-    min-height: 36px;
-    font-size: 11px;
-  }
-
-  .ponto-cal-day-label {
-    font-size: 9px;
-  }
-
-  .ponto-cal-legend-item {
-    font-size: 10px;
-  }
-
-  .ponto-day-detail-standalone {
-    padding: 12px;
-  }
-
-  .ponto-grid-history .ponto-card-body.ponto-week-cards {
-    padding: 12px;
   }
 }
 
