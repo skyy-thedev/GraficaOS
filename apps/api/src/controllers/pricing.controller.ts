@@ -26,7 +26,7 @@ const urgencySchema = z.enum(['NONE', 'PRIORITARIO', 'EXPRESS']);
 const pricingTierSchema = z.object({
   minQuantity: z.number().int().min(1),
   maxQuantity: z.number().int().min(1).nullable().optional(),
-  unitPrice: z.number().positive(),
+  unitPrice: z.number().nonnegative(),
 });
 
 const sizeVariationSchema = z.object({

@@ -1,4 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
+import { ZodError } from 'zod';
 
 interface AppError extends Error {
   statusCode?: number;
@@ -6,8 +7,17 @@ interface AppError extends Error {
 }
 
 /** Middleware global de tratamento de erros */
-export function errorHandler(err: AppError, _req: Request, res: Response, _next: NextFunction): void {
+export function errorHandler(err: AppError | ZodError, _req: Request, res: Response, _next: NextFunction): void {
   console.error('❌ Erro:', err.message);
+
+  // Erro de validação do Zod
+  if (err instanceof ZodError) {
+    res.status(422).json({
+      message: 'Dados inválidos',
+      errors: err.errors.map((e) => ({ path: e.path.join('.'), message: e.message })),
+    });
+    return;
+  }
 
   // Erro de validação do Prisma (registro único duplicado)
   if (err.code === 'P2002') {
